@@ -13,17 +13,17 @@ module NostrWalletConnect
 
       # Methods (the payload `method` field). The info event advertises a
       # space-separated subset of these.
-      PAY_INVOICE         = "pay_invoice"
-      MULTI_PAY_INVOICE   = "multi_pay_invoice"
-      PAY_KEYSEND         = "pay_keysend"
-      MULTI_PAY_KEYSEND   = "multi_pay_keysend"
-      MAKE_INVOICE        = "make_invoice"
-      LOOKUP_INVOICE      = "lookup_invoice"
-      LIST_TRANSACTIONS   = "list_transactions"
-      GET_BALANCE         = "get_balance"
-      GET_INFO            = "get_info"
-      SIGN_MESSAGE        = "sign_message"
-      NOTIFICATIONS       = "notifications" # capability marker, not a method
+      PAY_INVOICE         = 'pay_invoice'
+      MULTI_PAY_INVOICE   = 'multi_pay_invoice'
+      PAY_KEYSEND         = 'pay_keysend'
+      MULTI_PAY_KEYSEND   = 'multi_pay_keysend'
+      MAKE_INVOICE        = 'make_invoice'
+      LOOKUP_INVOICE      = 'lookup_invoice'
+      LIST_TRANSACTIONS   = 'list_transactions'
+      GET_BALANCE         = 'get_balance'
+      GET_INFO            = 'get_info'
+      SIGN_MESSAGE        = 'sign_message'
+      NOTIFICATIONS       = 'notifications' # capability marker, not a method
 
       ALL = [
         PAY_INVOICE, MULTI_PAY_INVOICE, PAY_KEYSEND, MULTI_PAY_KEYSEND,

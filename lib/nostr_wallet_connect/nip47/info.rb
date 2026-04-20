@@ -20,15 +20,15 @@ module NostrWalletConnect
       def self.parse(event)
         methods = event.content.to_s.strip.split(/\s+/).reject(&:empty?)
 
-        enc_tag = event.tags.find { |t| t[0] == "encryption" }
+        enc_tag = event.tags.find { |t| t[0] == 'encryption' }
         schemes = if enc_tag
                     enc_tag[1].to_s.strip.split(/\s+/)
                   else
                     # Spec: absence means nip04 only.
-                    ["nip04"]
+                    ['nip04']
                   end
 
-        notif_tag = event.tags.find { |t| t[0] == "notifications" }
+        notif_tag = event.tags.find { |t| t[0] == 'notifications' }
         notif_types = notif_tag ? notif_tag[1].to_s.strip.split(/\s+/) : []
 
         new(methods: methods, encryption_schemes: schemes, notification_types: notif_types, event: event)
@@ -39,11 +39,11 @@ module NostrWalletConnect
       end
 
       def supports_nip44?
-        @encryption_schemes.include?("nip44_v2")
+        @encryption_schemes.include?('nip44_v2')
       end
 
       def supports_nip04?
-        @encryption_schemes.include?("nip04")
+        @encryption_schemes.include?('nip04')
       end
 
       def preferred_encryption

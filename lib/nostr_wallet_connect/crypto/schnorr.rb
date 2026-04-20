@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "rbsecp256k1"
+require 'rbsecp256k1'
 
 module NostrWalletConnect
   module Crypto
@@ -15,7 +15,7 @@ module NostrWalletConnect
       # Sign a 32-byte digest with a private key. Returns 64-byte signature
       # as a lowercase hex string (128 chars).
       def sign(digest_bytes, privkey_hex)
-        raise ArgumentError, "digest must be 32 bytes" unless digest_bytes.bytesize == 32
+        raise ArgumentError, 'digest must be 32 bytes' unless digest_bytes.bytesize == 32
 
         ctx = ::Secp256k1::Context.create
         kp  = ctx.key_pair_from_private_key(Keys.hex_to_bytes(privkey_hex))

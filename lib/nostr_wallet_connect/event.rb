@@ -22,13 +22,13 @@ module NostrWalletConnect
     # Build from a hash as received from the relay.
     def self.from_hash(h)
       e = allocate
-      e.id         = h["id"]
-      e.pubkey     = h["pubkey"]
-      e.created_at = h["created_at"]
-      e.kind       = h["kind"]
-      e.tags       = h["tags"] || []
-      e.content    = h["content"] || ""
-      e.sig        = h["sig"]
+      e.id         = h['id']
+      e.pubkey     = h['pubkey']
+      e.created_at = h['created_at']
+      e.kind       = h['kind']
+      e.tags       = h['tags'] || []
+      e.content    = h['content'] || ''
+      e.sig        = h['sig']
       e
     end
 
@@ -59,13 +59,13 @@ module NostrWalletConnect
 
     def to_h
       {
-        "id" => @id,
-        "pubkey" => @pubkey,
-        "created_at" => @created_at,
-        "kind" => @kind,
-        "tags" => @tags,
-        "content" => @content,
-        "sig" => @sig
+        'id' => @id,
+        'pubkey' => @pubkey,
+        'created_at' => @created_at,
+        'kind' => @kind,
+        'tags' => @tags,
+        'content' => @content,
+        'sig' => @sig
       }
     end
   end

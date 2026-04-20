@@ -17,28 +17,28 @@ module NostrWalletConnect
         key = Crypto::ECDH.shared_x(privkey_hex, pubkey_hex)
         iv  = SecureRandom.bytes(16)
 
-        cipher = OpenSSL::Cipher.new("aes-256-cbc").encrypt
+        cipher = OpenSSL::Cipher.new('aes-256-cbc').encrypt
         cipher.key = key
         cipher.iv  = iv
-        ct = cipher.update(plaintext.encode("UTF-8")) + cipher.final
+        ct = cipher.update(plaintext.encode('UTF-8')) + cipher.final
 
         "#{Base64.strict_encode64(ct)}?iv=#{Base64.strict_encode64(iv)}"
       end
 
       def decrypt(payload, privkey_hex, pubkey_hex)
-        raise EncryptionError, "malformed NIP-04 payload" unless payload.include?("?iv=")
+        raise EncryptionError, 'malformed NIP-04 payload' unless payload.include?('?iv=')
 
-        ct_b64, iv_b64 = payload.split("?iv=", 2)
+        ct_b64, iv_b64 = payload.split('?iv=', 2)
         ct = Base64.strict_decode64(ct_b64)
         iv = Base64.strict_decode64(iv_b64)
-        raise EncryptionError, "invalid IV length" unless iv.bytesize == 16
+        raise EncryptionError, 'invalid IV length' unless iv.bytesize == 16
 
         key = Crypto::ECDH.shared_x(privkey_hex, pubkey_hex)
 
-        cipher = OpenSSL::Cipher.new("aes-256-cbc").decrypt
+        cipher = OpenSSL::Cipher.new('aes-256-cbc').decrypt
         cipher.key = key
         cipher.iv  = iv
-        (cipher.update(ct) + cipher.final).force_encoding("UTF-8")
+        (cipher.update(ct) + cipher.final).force_encoding('UTF-8')
       rescue OpenSSL::Cipher::CipherError, ArgumentError => e
         raise EncryptionError, "NIP-04 decryption failed: #{e.message}"
       end

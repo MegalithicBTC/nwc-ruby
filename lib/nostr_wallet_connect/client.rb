@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require "async"
-require "async/http/endpoint"
-require "async/websocket/client"
+require 'async'
+require 'async/http/endpoint'
+require 'async/websocket/client'
 
 module NostrWalletConnect
   # The main public API.
@@ -23,8 +23,8 @@ module NostrWalletConnect
 
     attr_reader :connection_string, :logger
 
-    def self.from_uri(uri_string, **opts)
-      new(ConnectionString.parse(uri_string), **opts)
+    def self.from_uri(uri_string, **)
+      new(ConnectionString.parse(uri_string), **)
     end
 
     def initialize(connection_string, logger: nil, request_timeout: DEFAULT_TIMEOUT)
@@ -59,54 +59,52 @@ module NostrWalletConnect
     # -- NIP-47 methods -------------------------------------------------------
 
     def pay_invoice(invoice:, amount: nil)
-      params = { "invoice" => invoice }
-      params["amount"] = amount if amount
+      params = { 'invoice' => invoice }
+      params['amount'] = amount if amount
       call(NIP47::Methods::PAY_INVOICE, params)
     end
 
     def multi_pay_invoice(invoices:)
-      call(NIP47::Methods::MULTI_PAY_INVOICE, { "invoices" => invoices })
+      call(NIP47::Methods::MULTI_PAY_INVOICE, { 'invoices' => invoices })
     end
 
     def pay_keysend(amount:, pubkey:, preimage: nil, tlv_records: nil)
-      params = { "amount" => amount, "pubkey" => pubkey }
-      params["preimage"]    = preimage    if preimage
-      params["tlv_records"] = tlv_records if tlv_records
+      params = { 'amount' => amount, 'pubkey' => pubkey }
+      params['preimage']    = preimage    if preimage
+      params['tlv_records'] = tlv_records if tlv_records
       call(NIP47::Methods::PAY_KEYSEND, params)
     end
 
     def multi_pay_keysend(keysends:)
-      call(NIP47::Methods::MULTI_PAY_KEYSEND, { "keysends" => keysends })
+      call(NIP47::Methods::MULTI_PAY_KEYSEND, { 'keysends' => keysends })
     end
 
     def make_invoice(amount:, description: nil, description_hash: nil, expiry: nil, metadata: nil)
-      params = { "amount" => amount }
-      params["description"]      = description      if description
-      params["description_hash"] = description_hash if description_hash
-      params["expiry"]           = expiry           if expiry
-      params["metadata"]         = metadata         if metadata
+      params = { 'amount' => amount }
+      params['description']      = description      if description
+      params['description_hash'] = description_hash if description_hash
+      params['expiry']           = expiry           if expiry
+      params['metadata']         = metadata         if metadata
       call(NIP47::Methods::MAKE_INVOICE, params)
     end
 
     def lookup_invoice(payment_hash: nil, invoice: nil)
-      if payment_hash.nil? && invoice.nil?
-        raise ArgumentError, "lookup_invoice requires payment_hash or invoice"
-      end
+      raise ArgumentError, 'lookup_invoice requires payment_hash or invoice' if payment_hash.nil? && invoice.nil?
 
       params = {}
-      params["payment_hash"] = payment_hash if payment_hash
-      params["invoice"]      = invoice      if invoice
+      params['payment_hash'] = payment_hash if payment_hash
+      params['invoice']      = invoice      if invoice
       call(NIP47::Methods::LOOKUP_INVOICE, params)
     end
 
     def list_transactions(from: nil, until_ts: nil, limit: nil, offset: nil, unpaid: nil, type: nil)
       params = {}
-      params["from"]   = from       if from
-      params["until"]  = until_ts   if until_ts
-      params["limit"]  = limit      if limit
-      params["offset"] = offset     if offset
-      params["unpaid"] = unpaid unless unpaid.nil?
-      params["type"]   = type       if type
+      params['from']   = from       if from
+      params['until']  = until_ts   if until_ts
+      params['limit']  = limit      if limit
+      params['offset'] = offset     if offset
+      params['unpaid'] = unpaid unless unpaid.nil?
+      params['type']   = type if type
       call(NIP47::Methods::LIST_TRANSACTIONS, params)
     end
 
@@ -119,7 +117,7 @@ module NostrWalletConnect
     end
 
     def sign_message(message:)
-      call(NIP47::Methods::SIGN_MESSAGE, { "message" => message })
+      call(NIP47::Methods::SIGN_MESSAGE, { 'message' => message })
     end
 
     # -- Notification listener -----------------------------------------------
@@ -145,7 +143,7 @@ module NostrWalletConnect
                                            NIP47::Methods::KIND_NOTIFICATION_NIP44],
                                    sub_id: "nwc-#{SecureRandom.hex(4)}",
                                    &block)
-      raise ArgumentError, "block required" unless block
+      raise ArgumentError, 'block required' unless block
 
       seen = {}
       conn = Transport::RelayConnection.new(url: @connection_string.relays.first, logger: @logger)
@@ -154,10 +152,10 @@ module NostrWalletConnect
         c.send_req(
           sub_id: sub_id,
           filters: [{
-            "authors" => [@connection_string.wallet_pubkey],
-            "#p"      => [@connection_string.client_pubkey],
-            "kinds"   => kinds,
-            "since"   => since
+            'authors' => [@connection_string.wallet_pubkey],
+            '#p' => [@connection_string.client_pubkey],
+            'kinds' => kinds,
+            'since' => since
           }]
         )
       end
@@ -204,21 +202,21 @@ module NostrWalletConnect
         endpoint = Async::HTTP::Endpoint.parse(@connection_string.relays.first)
         Async::WebSocket::Client.connect(endpoint) do |conn|
           request_event = NIP47::Request.build(
-            method:         method,
-            params:         params,
+            method: method,
+            params: params,
             client_privkey: @connection_string.secret,
-            wallet_pubkey:  @connection_string.wallet_pubkey,
-            encryption:     encryption
+            wallet_pubkey: @connection_string.wallet_pubkey,
+            encryption: encryption
           )
 
           sub_id = "rsp-#{SecureRandom.hex(4)}"
-          conn.write(Protocol::WebSocket::TextMessage.generate(["REQ", sub_id, {
-            "authors" => [@connection_string.wallet_pubkey],
-            "kinds"   => [NIP47::Methods::KIND_RESPONSE],
-            "#e"      => [request_event.id],
-            "#p"      => [@connection_string.client_pubkey]
-          }]))
-          conn.write(Protocol::WebSocket::TextMessage.generate(["EVENT", request_event.to_h]))
+          conn.write(Protocol::WebSocket::TextMessage.generate(['REQ', sub_id, {
+                                                                 'authors' => [@connection_string.wallet_pubkey],
+                                                                 'kinds' => [NIP47::Methods::KIND_RESPONSE],
+                                                                 '#e' => [request_event.id],
+                                                                 '#p' => [@connection_string.client_pubkey]
+                                                               }]))
+          conn.write(Protocol::WebSocket::TextMessage.generate(['EVENT', request_event.to_h]))
           conn.flush
 
           while (msg = conn.read)
@@ -230,7 +228,7 @@ module NostrWalletConnect
               next
             end
 
-            next unless parsed[0] == "EVENT" && parsed[1] == sub_id
+            next unless parsed[0] == 'EVENT' && parsed[1] == sub_id
 
             event = Event.from_hash(parsed[2])
             next unless event.valid_signature?
@@ -249,9 +247,7 @@ module NostrWalletConnect
       end.wait
 
       raise TimeoutError, "no response to #{method} within #{@request_timeout}s" if result.nil?
-      unless result.success?
-        raise WalletServiceError.new(result.error_code || "UNKNOWN", result.error_message || "")
-      end
+      raise WalletServiceError.new(result.error_code || 'UNKNOWN', result.error_message || '') unless result.success?
 
       result.result
     end
@@ -264,11 +260,11 @@ module NostrWalletConnect
       Async do
         Async::WebSocket::Client.connect(endpoint) do |conn|
           sub_id = "info-#{SecureRandom.hex(4)}"
-          conn.write(Protocol::WebSocket::TextMessage.generate(["REQ", sub_id, {
-            "authors" => [@connection_string.wallet_pubkey],
-            "kinds"   => [NIP47::Methods::KIND_INFO],
-            "limit"   => 1
-          }]))
+          conn.write(Protocol::WebSocket::TextMessage.generate(['REQ', sub_id, {
+                                                                 'authors' => [@connection_string.wallet_pubkey],
+                                                                 'kinds' => [NIP47::Methods::KIND_INFO],
+                                                                 'limit' => 1
+                                                               }]))
           conn.flush
 
           while (msg = conn.read)
@@ -280,11 +276,11 @@ module NostrWalletConnect
               next
             end
 
-            if parsed[0] == "EVENT" && parsed[1] == sub_id
+            if parsed[0] == 'EVENT' && parsed[1] == sub_id
               event  = Event.from_hash(parsed[2])
               result = NIP47::Info.parse(event) if event.valid_signature?
               break
-            elsif parsed[0] == "EOSE" && parsed[1] == sub_id
+            elsif parsed[0] == 'EOSE' && parsed[1] == sub_id
               break
             end
           end
@@ -297,7 +293,10 @@ module NostrWalletConnect
         end
       end.wait
 
-      raise TransportError, "wallet service published no info event (kind 13194) on #{@connection_string.relays.first}" if result.nil?
+      if result.nil?
+        raise TransportError,
+              "wallet service published no info event (kind 13194) on #{@connection_string.relays.first}"
+      end
 
       result
     end
@@ -311,7 +310,7 @@ module NostrWalletConnect
 
     def default_logger
       logger = Logger.new($stdout)
-      logger.level = ENV["NWC_LOG_LEVEL"] ? Logger.const_get(ENV["NWC_LOG_LEVEL"].upcase) : Logger::INFO
+      logger.level = ENV['NWC_LOG_LEVEL'] ? Logger.const_get(ENV['NWC_LOG_LEVEL'].upcase) : Logger::INFO
       logger
     end
   end

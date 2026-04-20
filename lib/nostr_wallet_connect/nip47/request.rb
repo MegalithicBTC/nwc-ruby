@@ -15,16 +15,16 @@ module NostrWalletConnect
       # @param expiration [Integer, nil] optional unix timestamp
       # @return [Event]
       def build(method:, params:, client_privkey:, wallet_pubkey:, encryption: :nip44_v2, expiration: nil)
-        payload = JSON.generate({ "method" => method, "params" => params })
+        payload = JSON.generate({ 'method' => method, 'params' => params })
         ciphertext = case encryption
                      when :nip44_v2 then NIP44::Cipher.encrypt(payload, client_privkey, wallet_pubkey)
                      when :nip04    then NIP04::Cipher.encrypt(payload, client_privkey, wallet_pubkey)
                      else raise ArgumentError, "unknown encryption: #{encryption}"
                      end
 
-        tags = [["p", wallet_pubkey]]
-        tags << ["encryption", "nip44_v2"] if encryption == :nip44_v2
-        tags << ["expiration", expiration.to_s] if expiration
+        tags = [['p', wallet_pubkey]]
+        tags << %w[encryption nip44_v2] if encryption == :nip44_v2
+        tags << ['expiration', expiration.to_s] if expiration
 
         client_pubkey = Crypto::Keys.public_key_from_private(client_privkey)
         event = Event.new(pubkey: client_pubkey, kind: Methods::KIND_REQUEST, content: ciphertext, tags: tags)

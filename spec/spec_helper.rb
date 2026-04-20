@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "nostr_wallet_connect"
+require 'nostr_wallet_connect'
 
 RSpec.configure do |config|
   config.expect_with :rspec do |c|

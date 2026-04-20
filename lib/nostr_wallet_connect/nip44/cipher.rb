@@ -29,7 +29,7 @@ module NostrWalletConnect
       MIN_PLAINTEXT    = 1
       MAX_PLAINTEXT    = 65_535
       MIN_PADDED_LEN   = 32
-      SALT             = "nip44-v2"
+      SALT             = 'nip44-v2'
 
       # @param plaintext [String] UTF-8 plaintext (1..65535 bytes)
       # @param privkey_hex [String] our private key, 32-byte hex
@@ -37,40 +37,40 @@ module NostrWalletConnect
       # @param nonce [String, nil] optional 32-byte nonce (for tests); random if nil
       # @return [String] base64 payload
       def encrypt(plaintext, privkey_hex, pubkey_hex, nonce: nil)
-        pt_bytes = plaintext.to_s.dup.force_encoding("UTF-8").b
+        pt_bytes = plaintext.to_s.dup.force_encoding('UTF-8').b
         if pt_bytes.bytesize < MIN_PLAINTEXT || pt_bytes.bytesize > MAX_PLAINTEXT
-          raise EncryptionError, "plaintext length must be 1..65535 bytes"
+          raise EncryptionError, 'plaintext length must be 1..65535 bytes'
         end
 
         conversation_key = derive_conversation_key(privkey_hex, pubkey_hex)
         nonce ||= SecureRandom.bytes(32)
-        raise EncryptionError, "nonce must be 32 bytes" unless nonce.bytesize == 32
+        raise EncryptionError, 'nonce must be 32 bytes' unless nonce.bytesize == 32
 
         chacha_key, chacha_nonce, hmac_key = derive_message_keys(conversation_key, nonce)
         padded     = pad(pt_bytes)
         ciphertext = chacha20(chacha_key, chacha_nonce, padded)
-        mac        = OpenSSL::HMAC.digest("SHA256", hmac_key, nonce + ciphertext)
+        mac        = OpenSSL::HMAC.digest('SHA256', hmac_key, nonce + ciphertext)
 
-        Base64.strict_encode64([VERSION].pack("C") + nonce + ciphertext + mac)
+        Base64.strict_encode64([VERSION].pack('C') + nonce + ciphertext + mac)
       end
 
       # @param payload [String] base64 NIP-44 payload
       # @return [String] UTF-8 plaintext
       def decrypt(payload, privkey_hex, pubkey_hex)
-        raise EncryptionError, "payload is nil or empty" if payload.nil? || payload.empty?
-        raise EncryptionError, "payload starts with '#' (not encrypted)" if payload.start_with?("#")
+        raise EncryptionError, 'payload is nil or empty' if payload.nil? || payload.empty?
+        raise EncryptionError, "payload starts with '#' (not encrypted)" if payload.start_with?('#')
 
         raw = begin
           Base64.strict_decode64(payload)
         rescue ArgumentError
-          raise EncryptionError, "payload is not valid base64"
+          raise EncryptionError, 'payload is not valid base64'
         end
 
         if raw.bytesize < 1 + 32 + MIN_PADDED_LEN + 32 || raw.bytesize > 1 + 32 + 65_536 + 32
-          raise EncryptionError, "payload length out of range"
+          raise EncryptionError, 'payload length out of range'
         end
 
-        version = raw.byteslice(0, 1).unpack1("C")
+        version = raw.byteslice(0, 1).unpack1('C')
         raise EncryptionError, "unsupported NIP-44 version: #{version}" unless version == VERSION
 
         nonce      = raw.byteslice(1, 32)
@@ -80,13 +80,11 @@ module NostrWalletConnect
         conversation_key = derive_conversation_key(privkey_hex, pubkey_hex)
         chacha_key, chacha_nonce, hmac_key = derive_message_keys(conversation_key, nonce)
 
-        expected_mac = OpenSSL::HMAC.digest("SHA256", hmac_key, nonce + ciphertext)
-        unless secure_compare(mac, expected_mac)
-          raise EncryptionError, "NIP-44 MAC verification failed"
-        end
+        expected_mac = OpenSSL::HMAC.digest('SHA256', hmac_key, nonce + ciphertext)
+        raise EncryptionError, 'NIP-44 MAC verification failed' unless secure_compare(mac, expected_mac)
 
-        padded    = chacha20(chacha_key, chacha_nonce, ciphertext)
-        unpad(padded).force_encoding("UTF-8")
+        padded = chacha20(chacha_key, chacha_nonce, ciphertext)
+        unpad(padded).force_encoding('UTF-8')
       end
 
       # --- Internals ------------------------------------------------------
@@ -103,7 +101,7 @@ module NostrWalletConnect
 
       # HKDF-extract(salt, IKM) = HMAC-SHA256(salt, IKM). Returns 32 bytes.
       def hkdf_extract(salt, ikm)
-        OpenSSL::HMAC.digest("SHA256", salt, ikm)
+        OpenSSL::HMAC.digest('SHA256', salt, ikm)
       end
 
       # HKDF-expand(PRK, info, L). RFC 5869.
@@ -112,7 +110,7 @@ module NostrWalletConnect
         t   = String.new(encoding: Encoding::BINARY)
         counter = 1
         while out.bytesize < length
-          t = OpenSSL::HMAC.digest("SHA256", prk, t + info + [counter].pack("C"))
+          t = OpenSSL::HMAC.digest('SHA256', prk, t + info + [counter].pack('C'))
           out << t
           counter += 1
         end
@@ -121,11 +119,11 @@ module NostrWalletConnect
 
       # Plain ChaCha20, 20 rounds, 96-bit nonce, 256-bit key.
       def chacha20(key, nonce, data)
-        cipher = OpenSSL::Cipher.new("chacha20")
+        cipher = OpenSSL::Cipher.new('chacha20')
         cipher.encrypt
         # OpenSSL's "chacha20" wants a 16-byte IV: 4-byte counter (little-endian, 0) + 12-byte nonce.
         cipher.key = key
-        cipher.iv  = [0].pack("V") + nonce
+        cipher.iv  = [0].pack('V') + nonce
         cipher.update(data) + cipher.final
       end
 
@@ -133,7 +131,7 @@ module NostrWalletConnect
       def pad(pt_bytes)
         n = pt_bytes.bytesize
         padded_len = calc_padded_len(n)
-        prefix     = [n].pack("n")          # u16 big-endian
+        prefix     = [n].pack('n') # u16 big-endian
         zeros      = "\x00".b * (padded_len - n)
         prefix + pt_bytes + zeros
       end
@@ -145,20 +143,20 @@ module NostrWalletConnect
         # next_power = 1 << (ceil(log2(unpadded_len - 1)))
         next_power = 1 << (unpadded_len - 1).bit_length
         chunk = next_power <= 256 ? 32 : next_power / 8
-        ((unpadded_len - 1) / chunk + 1) * chunk
+        (((unpadded_len - 1) / chunk) + 1) * chunk
       end
 
       def unpad(padded)
-        raise EncryptionError, "padded data too short" if padded.bytesize < 2 + MIN_PADDED_LEN - 2
+        raise EncryptionError, 'padded data too short' if padded.bytesize < 2 + MIN_PADDED_LEN - 2
 
-        n = padded.byteslice(0, 2).unpack1("n")
-        raise EncryptionError, "invalid padding length" if n < MIN_PLAINTEXT || n > MAX_PLAINTEXT
+        n = padded.byteslice(0, 2).unpack1('n')
+        raise EncryptionError, 'invalid padding length' if n < MIN_PLAINTEXT || n > MAX_PLAINTEXT
 
         pt = padded.byteslice(2, n)
-        raise EncryptionError, "truncated padded plaintext" if pt.nil? || pt.bytesize != n
+        raise EncryptionError, 'truncated padded plaintext' if pt.nil? || pt.bytesize != n
 
         expected_total = 2 + calc_padded_len(n)
-        raise EncryptionError, "padded length mismatch" unless padded.bytesize == expected_total
+        raise EncryptionError, 'padded length mismatch' unless padded.bytesize == expected_total
 
         pt
       end

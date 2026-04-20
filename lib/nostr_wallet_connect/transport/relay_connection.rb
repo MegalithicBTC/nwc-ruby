@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require "async"
-require "async/clock"
-require "async/http/endpoint"
-require "async/websocket/client"
-require "protocol/websocket/ping_frame"
+require 'async'
+require 'async/clock'
+require 'async/http/endpoint'
+require 'async/websocket/client'
+require 'protocol/websocket/ping_frame'
 
 module NostrWalletConnect
   module Transport
@@ -55,9 +55,9 @@ module NostrWalletConnect
         @signal_traps     = install_signal_traps
       end
 
-      def on_event(&block); @event_cb = block; end
-      def on_open(&block);  @open_cb  = block; end
-      def on_error(&block); @error_cb = block; end
+      def on_event(&block) = @event_cb = block
+      def on_open(&block) = @open_cb = block
+      def on_error(&block) = @error_cb = block
 
       def stop!
         @stop = true
@@ -74,7 +74,7 @@ module NostrWalletConnect
             begin
               run_one_connection(top)
               backoff = 1
-            rescue => e
+            rescue StandardError => e
               @logger.warn("[nwc] connection failed: #{e.class}: #{e.message}")
               @error_cb&.call(e)
               sleep_seconds = [backoff, @max_backoff].min
@@ -89,7 +89,7 @@ module NostrWalletConnect
       # Send raw client->relay message (e.g. REQ, EVENT, CLOSE). Safe to call
       # from within on_open / on_event callbacks.
       def send_message(message)
-        raise TransportError, "not connected" unless @conn
+        raise TransportError, 'not connected' unless @conn
 
         @conn.write(Protocol::WebSocket::TextMessage.generate(message))
         @conn.flush
@@ -97,17 +97,17 @@ module NostrWalletConnect
 
       # Helper: send ["REQ", sub_id, filter1, filter2, ...]
       def send_req(sub_id:, filters:)
-        send_message(["REQ", sub_id, *Array(filters)])
+        send_message(['REQ', sub_id, *Array(filters)])
       end
 
       # Helper: send ["EVENT", event_hash]
       def send_event(event_hash)
-        send_message(["EVENT", event_hash])
+        send_message(['EVENT', event_hash])
       end
 
       # Helper: send ["CLOSE", sub_id]
       def send_close(sub_id)
-        send_message(["CLOSE", sub_id])
+        send_message(['CLOSE', sub_id])
       end
 
       private
@@ -127,12 +127,10 @@ module NostrWalletConnect
               sleep @ping_interval
               break if @stop
 
-              conn.write(Protocol::WebSocket::PingFrame.new(data: "hb"))
+              conn.write(Protocol::WebSocket::PingFrame.new(data: 'hb'))
               conn.flush
 
-              if Async::Clock.now - last_pong > @pong_timeout
-                raise TransportError, "pong timeout (#{@pong_timeout}s)"
-              end
+              raise TransportError, "pong timeout (#{@pong_timeout}s)" if Async::Clock.now - last_pong > @pong_timeout
               if Async::Clock.now - opened_at > @recycle_interval
                 raise TransportError, "recycle (#{@recycle_interval}s)"
               end
@@ -171,15 +169,15 @@ module NostrWalletConnect
       # ["OK", event_id, accepted_bool, message], ["NOTICE", message], ["CLOSED", sub_id, reason].
       def dispatch(message)
         case message[0]
-        when "EVENT"
+        when 'EVENT'
           @event_cb&.call(message[1], message[2])
-        when "OK"
+        when 'OK'
           @logger.debug("[nwc] OK #{message[1]} accepted=#{message[2]} msg=#{message[3]}")
-        when "EOSE"
+        when 'EOSE'
           @logger.debug("[nwc] EOSE #{message[1]}")
-        when "NOTICE"
+        when 'NOTICE'
           @logger.info("[nwc] NOTICE #{message[1]}")
-        when "CLOSED"
+        when 'CLOSED'
           @logger.info("[nwc] CLOSED #{message[1]} #{message[2]}")
         else
           @logger.debug("[nwc] unknown message type: #{message[0]}")
@@ -197,7 +195,7 @@ module NostrWalletConnect
 
       def default_logger
         logger = Logger.new($stdout)
-        logger.level = ENV["NWC_LOG_LEVEL"] ? Logger.const_get(ENV["NWC_LOG_LEVEL"].upcase) : Logger::INFO
+        logger.level = ENV['NWC_LOG_LEVEL'] ? Logger.const_get(ENV['NWC_LOG_LEVEL'].upcase) : Logger::INFO
         logger
       end
     end

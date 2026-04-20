@@ -1,29 +1,29 @@
 # frozen_string_literal: true
 
-require "json"
-require "base64"
-require "securerandom"
-require "openssl"
-require "uri"
-require "logger"
+require 'json'
+require 'base64'
+require 'securerandom'
+require 'openssl'
+require 'uri'
+require 'logger'
 
-require_relative "nostr_wallet_connect/version"
-require_relative "nostr_wallet_connect/errors"
-require_relative "nostr_wallet_connect/crypto/keys"
-require_relative "nostr_wallet_connect/crypto/schnorr"
-require_relative "nostr_wallet_connect/crypto/ecdh"
-require_relative "nostr_wallet_connect/nip04/cipher"
-require_relative "nostr_wallet_connect/nip44/cipher"
-require_relative "nostr_wallet_connect/event"
-require_relative "nostr_wallet_connect/connection_string"
-require_relative "nostr_wallet_connect/nip47/methods"
-require_relative "nostr_wallet_connect/nip47/request"
-require_relative "nostr_wallet_connect/nip47/response"
-require_relative "nostr_wallet_connect/nip47/notification"
-require_relative "nostr_wallet_connect/nip47/info"
-require_relative "nostr_wallet_connect/transport/relay_connection"
-require_relative "nostr_wallet_connect/client"
-require_relative "nostr_wallet_connect/test_runner"
+require_relative 'nostr_wallet_connect/version'
+require_relative 'nostr_wallet_connect/errors'
+require_relative 'nostr_wallet_connect/crypto/keys'
+require_relative 'nostr_wallet_connect/crypto/schnorr'
+require_relative 'nostr_wallet_connect/crypto/ecdh'
+require_relative 'nostr_wallet_connect/nip04/cipher'
+require_relative 'nostr_wallet_connect/nip44/cipher'
+require_relative 'nostr_wallet_connect/event'
+require_relative 'nostr_wallet_connect/connection_string'
+require_relative 'nostr_wallet_connect/nip47/methods'
+require_relative 'nostr_wallet_connect/nip47/request'
+require_relative 'nostr_wallet_connect/nip47/response'
+require_relative 'nostr_wallet_connect/nip47/notification'
+require_relative 'nostr_wallet_connect/nip47/info'
+require_relative 'nostr_wallet_connect/transport/relay_connection'
+require_relative 'nostr_wallet_connect/client'
+require_relative 'nostr_wallet_connect/test_runner'
 
 # NostrWalletConnect is a Ruby client for NIP-47 (Nostr Wallet Connect).
 #

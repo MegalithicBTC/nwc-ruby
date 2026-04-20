@@ -19,11 +19,11 @@ module NostrWalletConnect
       end
 
       def error_code
-        @error && @error["code"]
+        @error && @error['code']
       end
 
       def error_message
-        @error && @error["message"]
+        @error && @error['message']
       end
 
       # @param event [Event] the kind 23195 event (already signature-verified)
@@ -32,18 +32,18 @@ module NostrWalletConnect
       # @return [Response]
       def self.parse(event, client_privkey, wallet_pubkey)
         # Tags: ["p", client_pubkey], ["e", request_event_id]
-        e_tag = event.tags.find { |t| t[0] == "e" }
+        e_tag = event.tags.find { |t| t[0] == 'e' }
         request_id = e_tag && e_tag[1]
 
         plaintext = decrypt(event.content, client_privkey, wallet_pubkey)
         data = JSON.parse(plaintext)
 
         new(
-          result_type: data["result_type"],
-          result:      data["result"],
-          error:       data["error"],
-          request_id:  request_id,
-          event:       event
+          result_type: data['result_type'],
+          result: data['result'],
+          error: data['error'],
+          request_id: request_id,
+          event: event
         )
       end
 

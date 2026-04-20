@@ -17,19 +17,19 @@ module NostrWalletConnect
       end
 
       def payment_hash
-        @data["payment_hash"]
+        @data['payment_hash']
       end
 
       def amount_msats
-        @data["amount"]
+        @data['amount']
       end
 
       def payment_received?
-        @type == "payment_received"
+        @type == 'payment_received'
       end
 
       def payment_sent?
-        @type == "payment_sent"
+        @type == 'payment_sent'
       end
 
       def self.parse(event, client_privkey, wallet_pubkey)
@@ -43,7 +43,7 @@ module NostrWalletConnect
                     end
 
         data = JSON.parse(plaintext)
-        new(type: data["notification_type"], data: data["notification"] || {}, event: event)
+        new(type: data['notification_type'], data: data['notification'] || {}, event: event)
       end
     end
   end
