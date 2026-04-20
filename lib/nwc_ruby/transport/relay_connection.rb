@@ -37,6 +37,7 @@ module NwcRuby
                      ping_interval: DEFAULT_PING_INTERVAL,
                      recycle_interval: DEFAULT_RECYCLE_INTERVAL,
                      max_backoff: DEFAULT_MAX_BACKOFF,
+                     poll_interval: nil,
                      logger: default_logger,
                      install_signal_traps: true)
         @url              = url
