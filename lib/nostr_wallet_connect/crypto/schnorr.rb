@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "secp256k1"
+require "rbsecp256k1"
 
 module NostrWalletConnect
   module Crypto

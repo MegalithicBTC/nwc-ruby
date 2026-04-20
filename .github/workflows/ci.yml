@@ -30,7 +30,7 @@ jobs:
         run: bundle install
 
       - name: Verify rbsecp256k1
-        run: bundle exec ruby -e 'require "secp256k1"; puts "secp256k1 OK"'
+        run: bundle exec ruby -e 'require "rbsecp256k1"; puts Secp256k1::Context.create; puts "rbsecp256k1 OK"'
 
       - name: Run tests
         run: bundle exec rspec
