@@ -101,7 +101,7 @@ gem build nwc-ruby.gemspec
 ```sh
 gem install ./nwc-ruby-0.1.0.gem
 
-ruby -e 'require "nostr_wallet_connect"; puts NostrWalletConnect::VERSION'
+ruby -e 'require "nwc_ruby"; puts NwcRuby::VERSION'
 # => 0.1.0
 ```
 
@@ -132,7 +132,7 @@ tag) and paste in the CHANGELOG entry for that version.
 Now that `release.yml` is in place and trusted publishing is configured, every
 release is just:
 
-1. Update `lib/nostr_wallet_connect/version.rb`:
+1. Update `lib/nwc_ruby/version.rb`:
    ```ruby
    VERSION = "0.2.0"
    ```

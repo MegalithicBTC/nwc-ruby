@@ -3,9 +3,9 @@
 A production-grade Ruby client for [Nostr Wallet Connect (NIP-47)][nip47].
 
 ```ruby
-require "nostr_wallet_connect"
+require "nwc_ruby"
 
-client = NostrWalletConnect::Client.from_uri(ENV["NWC_URL"])
+client = NwcRuby::Client.from_uri(ENV["NWC_URL"])
 
 # Create an invoice
 invoice = client.make_invoice(amount: 1_000, description: "tip")
@@ -37,7 +37,7 @@ heartbeats, zombie-TCP detection, reconnects, and backoff. You call methods.
 - **Bulletproof long-running transport** — 30 s ping, 45 s pong deadline, 5-min
   forced recycle, capped exponential backoff, clean SIGTERM handling. Built on
   [async-websocket][aw] (no dead EventMachine dependency).
-- **Diagnostic method** — `NostrWalletConnect.test(...)` tells you whether your
+- **Diagnostic method** — `NwcRuby.test(...)` tells you whether your
   NWC code is read-only or read+write, exercises every method the service
   advertises, verifies that the wallet delivers `payment_received`
   notifications, and flags non-conforming responses with actionable errors.
@@ -93,7 +93,7 @@ Use per-app codes with per-app budgets — never reuse your main wallet's code.
 The gem tells you which mode you have:
 
 ```ruby
-client = NostrWalletConnect::Client.from_uri(ENV["NWC_URL"])
+client = NwcRuby::Client.from_uri(ENV["NWC_URL"])
 puts client.read_only?   # => true or false
 puts client.capabilities # => ["get_info", "get_balance", "make_invoice", ...]
 ```
@@ -101,7 +101,7 @@ puts client.capabilities # => ["get_info", "get_balance", "make_invoice", ...]
 Or from IRB / a Rails console:
 
 ```ruby
-NostrWalletConnect.test(nwc_url: ENV["NWC_URL"])
+NwcRuby.test(nwc_url: ENV["NWC_URL"])
 # ...
 # ℹ  This is a READ-ONLY code. It cannot move funds.
 ```
@@ -168,7 +168,7 @@ Each call transparently opens a WebSocket, sends the request, waits for the
 response, and closes the connection.
 
 ```ruby
-client = NostrWalletConnect::Client.from_uri(ENV["NWC_URL"])
+client = NwcRuby::Client.from_uri(ENV["NWC_URL"])
 
 info = client.get_info
 # => {"alias"=>"my-node", "color"=>"#3399FF", "pubkey"=>"...",
@@ -196,7 +196,7 @@ This is the scenario the gem is most carefully engineered for: a long-running
 process that needs to credit invoices the instant they're paid.
 
 ```ruby
-client = NostrWalletConnect::Client.from_uri(ENV["NWC_URL"])
+client = NwcRuby::Client.from_uri(ENV["NWC_URL"])
 
 client.subscribe_to_notifications do |notification|
   case notification.type
@@ -269,7 +269,7 @@ GoodJob to communicate with the web container:
 # lib/tasks/nwc.rake (in your Rails app)
 namespace :nwc do
   task listen_in_app: :environment do
-    client = NostrWalletConnect::Client.from_uri(ENV["NWC_URL"])
+    client = NwcRuby::Client.from_uri(ENV["NWC_URL"])
     since  = AppState.find_or_create_by(key: "nwc_last_seen").value.to_i
     since  = Time.now.to_i if since.zero?
 
@@ -310,7 +310,7 @@ console, an RSpec test, or a rake task in your own app. There are no rake
 tasks shipped from the gem itself.
 
 ```ruby
-NostrWalletConnect.test(
+NwcRuby.test(
   nwc_url:                  ENV["NWC_URL"],
   pay_to_lightning_address: "you@getalby.com", # optional
   pay_to_satoshis_amount:   10                  # default: 100
@@ -341,7 +341,7 @@ bin/rails c
 ```
 
 ```ruby
-NostrWalletConnect.test(nwc_url: ENV["NWC_URL"])
+NwcRuby.test(nwc_url: ENV["NWC_URL"])
 ```
 
 ### Wrapping it in your own rake task
@@ -354,7 +354,7 @@ If you want to run this from CI or as a manual command, put a thin task in
 namespace :nwc do
   desc "Diagnose an NWC connection string end-to-end."
   task :test, %i[nwc_url pay_to_lightning_address pay_to_satoshis_amount] => :environment do |_t, args|
-    ok = NostrWalletConnect.test(
+    ok = NwcRuby.test(
       nwc_url:                  args[:nwc_url],
       pay_to_lightning_address: args[:pay_to_lightning_address],
       pay_to_satoshis_amount:   Integer(args[:pay_to_satoshis_amount] || 100)
@@ -373,7 +373,7 @@ bundle exec rake 'nwc:test[nostr+walletconnect://...,you@getalby.com,10]'
 ### Sample output
 
 ```
-Nostr Wallet Connect diagnostic
+NWC Ruby diagnostic
 
   ✓ Connection string parsed
   ✓ Fetched info event (kind 13194)
@@ -441,7 +441,7 @@ When the wallet service misbehaves, the runner flags it:
 
 ## API reference
 
-### `NostrWalletConnect::Client`
+### `NwcRuby::Client`
 
 Constructor:
 
@@ -481,7 +481,7 @@ Listener:
 | ----------------------------------------------- | --------------------------------------------- |
 | `#subscribe_to_notifications(since:) { \|n\| }` | Blocks forever. Yields `NIP47::Notification`. |
 
-### `NostrWalletConnect::NIP47::Notification`
+### `NwcRuby::NIP47::Notification`
 
 | Field           |                                          |
 | --------------- | ---------------------------------------- |
@@ -493,7 +493,7 @@ Listener:
 
 ### Errors
 
-All gem errors inherit from `NostrWalletConnect::Error`:
+All gem errors inherit from `NwcRuby::Error`:
 
 - `InvalidConnectionStringError` — the URI couldn't be parsed.
 - `EncryptionError` — bad MAC / bad padding / unknown version byte / bad key.
@@ -536,8 +536,8 @@ bundle exec rspec
 To run the diagnostic against a real wallet while developing the gem itself:
 
 ```sh
-bundle exec ruby -Ilib -rnostr_wallet_connect -e '
-  NostrWalletConnect.test(
+bundle exec ruby -Ilib -rnwc_ruby -e '
+  NwcRuby.test(
     nwc_url: ENV["NWC_URL"],
     pay_to_lightning_address: ENV["LN_ADDR"],
     pay_to_satoshis_amount: 10
@@ -548,8 +548,8 @@ bundle exec ruby -Ilib -rnostr_wallet_connect -e '
 Or drop into IRB:
 
 ```sh
-bundle exec irb -Ilib -rnostr_wallet_connect
-> NostrWalletConnect.test(nwc_url: ENV["NWC_URL"])
+bundle exec irb -Ilib -rnwc_ruby
+> NwcRuby.test(nwc_url: ENV["NWC_URL"])
 ```
 
 ---

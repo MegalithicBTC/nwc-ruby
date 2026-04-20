@@ -11,7 +11,7 @@ WORKDIR /gem
 
 # Install gems (cached unless Gemfile/gemspec change)
 COPY Gemfile nwc-ruby.gemspec ./
-COPY lib/nostr_wallet_connect/version.rb lib/nostr_wallet_connect/version.rb
+COPY lib/nwc_ruby/version.rb lib/nwc_ruby/version.rb
 RUN bundle install --jobs 16
 
 # Copy gem source

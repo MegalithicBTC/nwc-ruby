@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require_relative 'lib/nostr_wallet_connect/version'
+require_relative 'lib/nwc_ruby/version'
 
 Gem::Specification.new do |spec|
   spec.name        = 'nwc-ruby'
-  spec.version     = NostrWalletConnect::VERSION
+  spec.version     = NwcRuby::VERSION
   spec.authors     = ['MegalithicBTC']
   spec.email       = ['hello@megalithic.me']
 

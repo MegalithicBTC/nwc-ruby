@@ -23,8 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reliable long-running `Transport::RelayConnection`: RFC 6455 ping (30 s),
   pong deadline (45 s), forced recycle (5 min), capped exponential backoff,
   SIGTERM/SIGINT handling.
-- `NostrWalletConnect.test(nwc_url:, pay_to_lightning_address:, pay_to_satoshis_amount:)`
-  diagnostic method, backed by `NostrWalletConnect::TestRunner`. Announces
+- `NwcRuby.test(nwc_url:, pay_to_lightning_address:, pay_to_satoshis_amount:)`
+  diagnostic method, backed by `NwcRuby::TestRunner`. Announces
   read-only vs read+write, exercises every advertised method, pays a Lightning
   address if the code is read+write, generates an invoice and verifies the
   `payment_received` notification arrives. Callable from IRB, Rails console,
