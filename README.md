@@ -1,4 +1,4 @@
-# nostr_wallet_connect
+# nwc-ruby
 
 A production-grade Ruby client for [Nostr Wallet Connect (NIP-47)][nip47].
 
@@ -113,13 +113,13 @@ NostrWalletConnect.test(nwc_url: ENV["NWC_URL"])
 Add to your Gemfile:
 
 ```ruby
-gem "nostr_wallet_connect"
+gem "nwc-ruby"
 ```
 
 Or install directly:
 
 ```sh
-gem install nostr_wallet_connect
+gem install nwc-ruby
 ```
 
 The `rbsecp256k1` dependency builds a native extension that requires
@@ -222,6 +222,15 @@ servers:
       memory: 512m
 ```
 
+**Important: make your notification handler idempotent.** During deploys,
+reconnects, or if you scale `nwc_listener` to multiple hosts, the same
+`payment_received` notification can be delivered more than once. The gem
+deduplicates within a single process lifetime, but across restarts or multiple
+instances you must handle duplicates at the database level. Use a unique
+constraint on `payment_hash` (or an `UPDATE ... WHERE state != 'paid'` guard)
+so that processing the same notification twice is a harmless no-op — never
+double-credit a payment.
+
 Define the listener rake task in your app. Use Postgres `LISTEN/NOTIFY` or
 GoodJob to communicate with the web container:
 
@@ -235,14 +244,16 @@ namespace :nwc do
 
     client.subscribe_to_notifications(since: since) do |n|
       Invoice.transaction do
-        Invoice.where(payment_hash: n.payment_hash).update_all(
-          state: "paid",
-          paid_amount_msats: n.amount_msats,
-          paid_at: Time.at(n.event.created_at)
-        )
+        # Idempotent: only transitions pending → paid, ignores already-paid rows.
+        rows = Invoice.where(payment_hash: n.payment_hash, state: "pending")
+                      .update_all(
+                        state: "paid",
+                        paid_amount_msats: n.amount_msats,
+                        paid_at: Time.at(n.event.created_at)
+                      )
         AppState.where(key: "nwc_last_seen").update_all(value: n.event.created_at)
+        ActiveRecord::Base.connection.execute("NOTIFY nwc_invoice_paid") if rows > 0
       end
-      ActiveRecord::Base.connection.execute("NOTIFY nwc_invoice_paid")
     end
   end
 end
@@ -251,6 +262,11 @@ end
 Docker's `--restart unless-stopped` (Kamal's default) plus the gem's internal
 reconnect loop plus a SIGTERM trap gives you crash-only reliability without
 systemd, foreman, or any process supervisor.
+
+If you run the listener on multiple hosts, each instance receives the same
+notifications independently. This is fine as long as the handler is idempotent
+(as shown above). Running multiple instances gives you redundancy — if one
+host goes down, the others keep listening — but they do not partition work.
 
 [kamal-roles]: https://kamal-deploy.org/docs/configuration/roles/
 
@@ -480,8 +496,8 @@ All gem errors inherit from `NostrWalletConnect::Error`:
 ## Development
 
 ```sh
-git clone https://github.com/MegalithicBTC/nostr_wallet_connect
-cd nostr_wallet_connect
+git clone https://github.com/MegalithicBTC/nwc-ruby
+cd nwc-ruby
 bundle install
 bundle exec rspec
 ```

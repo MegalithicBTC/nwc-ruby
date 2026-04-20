@@ -26,19 +26,19 @@ which will force MFA on every push to this gem.
 ### 3. Create the GitHub repo
 
 - Go to <https://github.com/MegalithicBTC?tab=repositories>, click **New**.
-- Name: `nostr_wallet_connect` (match the gem name exactly).
+- Name: `nwc-ruby` (match the gem name exactly).
 - Description: `Ruby client for Nostr Wallet Connect (NIP-47)`
 - Public. MIT license. No README / .gitignore / license (the gem ships those).
 
 ### 4. Push the initial code
 
 ```sh
-cd /path/to/nostr_wallet_connect
+cd /path/to/nwc-ruby
 
 git init -b main
 git add .
-git commit -m "Initial commit: nostr_wallet_connect gem v0.1.0"
-git remote add origin git@github.com:MegalithicBTC/nostr_wallet_connect.git
+git commit -m "Initial commit: nwc-ruby gem v0.1.0"
+git remote add origin git@github.com:MegalithicBTC/nwc-ruby.git
 git push -u origin main
 ```
 
@@ -66,10 +66,10 @@ trust pushes from your specific GitHub workflow. This is what the
 
 - Go to <https://rubygems.org/profile/oidc/pending_trusted_publishers/new>.
 - **Repository owner**: `MegalithicBTC`
-- **Repository name**: `nostr_wallet_connect`
+- **Repository name**: `nwc-ruby`
 - **Workflow filename**: `release.yml`
 - **Environment name**: (leave blank)
-- **Rubygem name**: `nostr_wallet_connect`
+- **Rubygem name**: `nwc-ruby`
 
 This creates a "pending" trusted publisher that auto-activates the first time
 you do a manual push (below). From then on, tagging a version pushes to
@@ -83,7 +83,7 @@ exists before the trusted publisher can claim it.
 ### 1. Verify everything builds cleanly
 
 ```sh
-cd /path/to/nostr_wallet_connect
+cd /path/to/nwc-ruby
 
 bundle install
 bundle exec rspec        # all green
@@ -91,15 +91,15 @@ bundle exec rubocop      # no offenses
 
 gem build nostr_wallet_connect.gemspec
 # => Successfully built RubyGem
-# => Name: nostr_wallet_connect
+# => Name: nwc-ruby
 # => Version: 0.1.0
-# => File: nostr_wallet_connect-0.1.0.gem
+# => File: nwc-ruby-0.1.0.gem
 ```
 
 ### 2. Do a dry-run install locally
 
 ```sh
-gem install ./nostr_wallet_connect-0.1.0.gem
+gem install ./nwc-ruby-0.1.0.gem
 
 ruby -e 'require "nostr_wallet_connect"; puts NostrWalletConnect::VERSION'
 # => 0.1.0
@@ -111,11 +111,11 @@ and re-push the same version number.
 ### 3. Push to RubyGems
 
 ```sh
-gem push nostr_wallet_connect-0.1.0.gem
+gem push nwc-ruby-0.1.0.gem
 # Enter your MFA OTP when prompted.
 ```
 
-Verify: <https://rubygems.org/gems/nostr_wallet_connect>
+Verify: <https://rubygems.org/gems/nwc-ruby>
 
 ### 4. Tag and push to GitHub
 
@@ -144,7 +144,7 @@ release is just:
    git push origin v0.2.0
    ```
 5. The `release.yml` workflow builds and pushes to RubyGems via OIDC. Watch
-   <https://github.com/MegalithicBTC/nostr_wallet_connect/actions>.
+   <https://github.com/MegalithicBTC/nwc-ruby/actions>.
 
 ## Version numbering
 
@@ -167,7 +167,7 @@ Bump to 1.0.0 when:
 If you push a version with a critical bug:
 
 ```sh
-gem yank nostr_wallet_connect -v 0.1.0
+gem yank nwc-ruby -v 0.1.0
 ```
 
 This removes it from RubyGems. **You cannot re-push the same version number**
@@ -193,6 +193,6 @@ before the pending trusted publisher can latch on to the gem. Don't skip the
 
 ## After publishing
 
-- Add a shields.io badge to the README: `[![Gem Version](https://badge.fury.io/rb/nostr_wallet_connect.svg)](https://rubygems.org/gems/nostr_wallet_connect)`
+- Add a shields.io badge to the README: `[![Gem Version](https://badge.fury.io/rb/nwc-ruby.svg)](https://rubygems.org/gems/nwc-ruby)`
 - Update `docs.megalithic.me` with a pointer to the gem.
 - Write a blog post. The README already links out to rizful.com and getalby.com.

@@ -3,7 +3,7 @@
 require_relative "lib/nostr_wallet_connect/version"
 
 Gem::Specification.new do |spec|
-  spec.name        = "nostr_wallet_connect"
+  spec.name        = "nwc-ruby"
   spec.version     = NostrWalletConnect::VERSION
   spec.authors     = ["MegalithicBTC"]
   spec.email       = ["hello@megalithic.me"]
@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
     `subscribe_to_notifications { |n| ... }` — the transport reliability is hidden.
   DESC
 
-  spec.homepage              = "https://github.com/MegalithicBTC/nostr_wallet_connect"
+  spec.homepage              = "https://github.com/MegalithicBTC/nwc-ruby"
   spec.license               = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
 
