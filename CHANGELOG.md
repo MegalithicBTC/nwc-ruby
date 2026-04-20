@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-20
+
+### Changed
+
+- **Breaking:** Split `NwcRuby.test` into two methods: `NwcRuby.test` (info +
+  read tests + write test if applicable) and `NwcRuby.test_notifications`
+  (subscribe and block forever, printing each notification). Notifications are
+  now tested in a separate process instead of a background thread, which
+  fixes the issue where notifications were never received during the
+  integrated test.
+- Removed `test_send_and_receive` and `test_readonly` — a single `test` method
+  handles both read-only and read+write codes. If the code is read-only but
+  a Lightning address is provided, it prints a helpful warning instead of failing.
+- `bin/nwc_test` now accepts an optional `notifications` subcommand:
+  `bin/nwc_test` (default test), `bin/nwc_test notifications` (listen forever).
+
 ## [0.1.1] — 2026-04-20
 
 ### Fixed
@@ -39,9 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reliable long-running `Transport::RelayConnection`: RFC 6455 ping (30 s),
   pong deadline (45 s), forced recycle (5 min), capped exponential backoff,
   SIGTERM/SIGINT handling.
-- `NwcRuby.test(nwc_url:, pay_to_lightning_address:, pay_to_satoshis_amount:)`
-  diagnostic method, backed by `NwcRuby::TestRunner`. Announces
-  read-only vs read+write, exercises every advertised method, pays a Lightning
-  address if the code is read+write, generates an invoice and verifies the
-  `payment_received` notification arrives. Callable from IRB, Rails console,
-  RSpec, or a rake task in the host app.
+- `NwcRuby.test` and `NwcRuby.test_notifications` diagnostic methods, backed
+  by `NwcRuby::TestRunner`. Announces read-only vs read+write, exercises every
+  advertised method, pays a Lightning address if the code is read+write.
+  Callable from IRB, Rails console, RSpec, or a rake task in the host app.
