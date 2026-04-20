@@ -122,9 +122,39 @@ Or install directly:
 gem install nwc-ruby
 ```
 
-The `rbsecp256k1` dependency builds a native extension that requires
-`libsecp256k1`. On Ubuntu/Debian: `apt-get install libsecp256k1-dev`. On macOS:
-`brew install secp256k1`.
+The `rbsecp256k1` dependency is a C extension that links against `libsecp256k1`.
+You **must** install the system library before `bundle install` — otherwise the
+native extension will fail to compile.
+
+**macOS:**
+
+```sh
+brew install secp256k1
+```
+
+**Ubuntu / Debian:**
+
+```sh
+sudo apt-get update && sudo apt-get install -y libsecp256k1-dev
+```
+
+**Alpine:**
+
+```sh
+apk add secp256k1-dev
+```
+
+**Docker (Kamal / production):**
+
+```dockerfile
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libsecp256k1-dev build-essential && rm -rf /var/lib/apt/lists/*
+```
+
+If you see `LoadError: cannot load such file -- secp256k1` at runtime, the
+library was not present when the gem's native extension was compiled. Install
+the library and run `gem pristine rbsecp256k1` (or re-run `bundle install`)
+to rebuild it.
 
 ---
 
