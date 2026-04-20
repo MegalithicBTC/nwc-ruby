@@ -27,12 +27,10 @@ module NostrWalletConnect
       def verify(digest_bytes, sig_hex, xonly_pubkey_hex)
         return false unless sig_hex.is_a?(String) && sig_hex.length == 128
 
-        ctx = ::Secp256k1::Context.create
-        # rbsecp256k1 wants a 32-byte "x-only" pubkey object.
-        xonly_pub = ctx.x_only_public_key_from_bytes(Keys.hex_to_bytes(xonly_pubkey_hex))
+        xonly_pub = ::Secp256k1::XOnlyPublicKey.from_data(Keys.hex_to_bytes(xonly_pubkey_hex))
         sig_obj   = ::Secp256k1::SchnorrSignature.from_data(Keys.hex_to_bytes(sig_hex))
-        ctx.verify_schnorr(sig_obj, xonly_pub, digest_bytes)
-      rescue ::Secp256k1::Error, ArgumentError
+        sig_obj.verify(digest_bytes, xonly_pub)
+      rescue ::Secp256k1::Error, ::Secp256k1::DeserializationError, ArgumentError
         false
       end
     end

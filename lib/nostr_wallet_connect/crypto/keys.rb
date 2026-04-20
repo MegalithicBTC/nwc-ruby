@@ -38,7 +38,7 @@ module NostrWalletConnect
 
       def validate_hex32!(hex, label = "value")
         unless hex.is_a?(String) && hex.match?(/\A[0-9a-fA-F]{64}\z/)
-          raise Error, "#{label} must be 64 hex characters (32 bytes)"
+          raise InvalidConnectionStringError, "#{label} must be 64 hex characters (32 bytes)"
         end
       end
     end

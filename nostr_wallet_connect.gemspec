@@ -38,6 +38,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "base64"
+  spec.add_dependency "logger"
   spec.add_dependency "async",           "~> 2.10"
   spec.add_dependency "async-http",      "~> 0.70"
   spec.add_dependency "async-websocket", "~> 0.26"

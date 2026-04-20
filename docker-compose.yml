@@ -1,0 +1,10 @@
+services:
+  test:
+    build: .
+    command: bundle exec rspec
+    volumes:
+      - .:/gem
+      - bundle_cache:/usr/local/bundle
+
+volumes:
+  bundle_cache:
