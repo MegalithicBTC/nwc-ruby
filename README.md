@@ -191,8 +191,7 @@ client.pay_invoice(invoice: "lnbc...")
 ### Listening for notifications
 
 This is the scenario the gem is most carefully engineered for: a long-running
-process that needs to credit invoices the instant they're paid, even if the
-relay flaps or the NAT box silently drops idle connections at 3 a.m.
+process that needs to credit invoices the instant they're paid.
 
 ```ruby
 client = NostrWalletConnect::Client.from_uri(ENV["NWC_URL"])
