@@ -53,7 +53,7 @@ heartbeats, zombie-TCP detection, reconnects, and backoff. You call methods.
 You need a `nostr+walletconnect://...` URI. Two free, reliable options:
 
 - **[rizful.com][rizful]** — Lightning vaults and cloud-based Lightning nodes designed for reliability and NWC support.
-  built by the Megalith Node team. Dedicated NWC relay. NIP-44 v2 only.
+  built by the Megalith Node team. Dedicated NWC relay.
 - **[getalby.com][alby]** — Alby Hub (self-hosted) or Alby Cloud. The
   most widely used NWC implementation.
 
