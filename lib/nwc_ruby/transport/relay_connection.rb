@@ -135,39 +135,8 @@ module NwcRuby
 
         Async::WebSocket::Client.connect(endpoint) do |conn|
           @conn = conn
-
-          heartbeat = top.async do
-            loop do
-              conn.send_ping
-              conn.flush
-              @logger.debug("[nwc] ping sent")
-
-              sleep @ping_interval
-              break if @stop
-
-              if Async::Clock.now - opened_at > @recycle_interval
-                raise TransportError, "recycle (#{@recycle_interval}s)"
-              end
-            end
-          end
-
-          # Some relays (e.g. strfry) store ephemeral events temporarily but
-          # do not push them to active subscriptions. Periodic re-subscribe
-          # forces the relay to return any newly-stored events.
-          poll = if @poll_interval && @poll_cb
-                   top.async do
-                     loop do
-                       sleep @poll_interval
-                       break if @stop
-
-                       begin
-                         @poll_cb.call(self)
-                       rescue StandardError => e
-                         @logger.warn("[nwc] poll error: #{e.message}")
-                       end
-                     end
-                   end
-                 end
+          heartbeat = start_heartbeat(top, conn, opened_at)
+          poll      = start_poll(top)
 
           @open_cb&.call(self)
           read_loop(conn)
@@ -179,6 +148,38 @@ module NwcRuby
             conn&.close
           rescue StandardError
             nil
+          end
+        end
+      end
+
+      def start_heartbeat(top, conn, opened_at)
+        top.async do
+          loop do
+            conn.send_ping
+            conn.flush
+            @logger.debug('[nwc] ping sent')
+
+            sleep @ping_interval
+            break if @stop
+
+            raise TransportError, "recycle (#{@recycle_interval}s)" if Async::Clock.now - opened_at > @recycle_interval
+          end
+        end
+      end
+
+      def start_poll(top)
+        return unless @poll_interval && @poll_cb
+
+        top.async do
+          loop do
+            sleep @poll_interval
+            break if @stop
+
+            begin
+              @poll_cb.call(self)
+            rescue StandardError => e
+              @logger.warn("[nwc] poll error: #{e.message}")
+            end
           end
         end
       end
@@ -224,7 +225,8 @@ module NwcRuby
             # Close the socket to unblock the read loop.
             begin
               @conn&.close
-            rescue StandardError # rubocop:disable Lint/SuppressedException
+            rescue StandardError
+              nil
             end
           end
         end

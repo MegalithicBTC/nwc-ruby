@@ -143,7 +143,7 @@ module NwcRuby
     # @param kinds [Array<Integer>] notification kinds to listen for. Defaults
     #   to both NIP-04 (23196) and NIP-44 v2 (23197). The listener dedupes by
     #   `payment_hash`, so receiving both is safe.
-    def subscribe_to_notifications(since: Time.now.to_i,
+    def subscribe_to_notifications(since: Time.now.to_i, # rubocop:disable Metrics/MethodLength
                                    kinds: [NIP47::Methods::KIND_NOTIFICATION_NIP04,
                                            NIP47::Methods::KIND_NOTIFICATION_NIP44],
                                    sub_id: "nwc-#{SecureRandom.hex(4)}",
@@ -168,7 +168,10 @@ module NwcRuby
       @notification_connection = conn
 
       conn.on_open do |c|
-        @logger.info("[nwc] subscribing sub_id=#{sub_id} client_pubkey=#{@connection_string.client_pubkey} wallet_pubkey=#{@connection_string.wallet_pubkey} kinds=#{kinds.inspect} since=#{since}")
+        @logger.info(
+          "[nwc] subscribing sub_id=#{sub_id} client_pubkey=#{@connection_string.client_pubkey} " \
+          "wallet_pubkey=#{@connection_string.wallet_pubkey} kinds=#{kinds.inspect} since=#{since}"
+        )
         c.send_req(sub_id: sub_id, filters: filters)
       end
 

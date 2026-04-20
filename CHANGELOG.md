@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-04-20
+
+### Fixed
+
+- Fixed all RuboCop offenses (CI now passes clean).
+- Extracted `start_heartbeat` / `start_poll` from `run_one_connection` to reduce
+  method length and perceived complexity.
+- Corrected README and CHANGELOG: transport uses 15 s ping keepalive (not 30 s
+  ping + 45 s pong deadline — the pong deadline was removed in 0.1.1 due to
+  async-websocket 0.30 API changes).
+- Fixed string quoting, hash alignment, guard clause, and line length offenses
+  across Rakefile, `bin/nwc_test`, `client.rb`, `test_runner.rb`, and
+  `relay_connection.rb`.
+- Excluded `lib/nwc-ruby.rb` from `Naming/FileName` (compatibility shim).
+
 ## [0.2.0] — 2026-04-20
 
 ### Changed
@@ -52,9 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `multi_pay_keysend`, `make_invoice`, `lookup_invoice`, `list_transactions`,
   `get_balance`, `get_info`, `sign_message`.
 - Notification listener (kinds 23196 and 23197) with dedupe by `payment_hash`.
-- Reliable long-running `Transport::RelayConnection`: RFC 6455 ping (30 s),
-  pong deadline (45 s), forced recycle (5 min), capped exponential backoff,
-  SIGTERM/SIGINT handling.
+- Reliable long-running `Transport::RelayConnection`: RFC 6455 ping (15 s),
+  forced recycle (5 min), capped exponential backoff, SIGTERM/SIGINT handling.
 - `NwcRuby.test` and `NwcRuby.test_notifications` diagnostic methods, backed
   by `NwcRuby::TestRunner`. Announces read-only vs read+write, exercises every
   advertised method, pays a Lightning address if the code is read+write.

@@ -24,14 +24,14 @@ namespace :nwc do
     require 'nwc_ruby'
 
     nwc_url = ENV.fetch('NWC_URL') do
-      abort "ERROR: NWC_URL env var is required.\n" \
-            "  NWC_URL=\"nostr+walletconnect://...\" rake nwc:test"
+      abort "ERROR: NWC_URL env var is required.\n  " \
+            'NWC_URL="nostr+walletconnect://..." rake nwc:test'
     end
 
     ok = NwcRuby.test(
-      nwc_url:                  nwc_url,
-      pay_to_lightning_address: ENV['PAY_TO_LIGHTNING_ADDRESS'],
-      pay_to_satoshis_amount:   Integer(ENV.fetch('PAY_TO_SATOSHIS_AMOUNT', 100))
+      nwc_url: nwc_url,
+      pay_to_lightning_address: ENV.fetch('PAY_TO_LIGHTNING_ADDRESS', nil),
+      pay_to_satoshis_amount: Integer(ENV.fetch('PAY_TO_SATOSHIS_AMOUNT', 100))
     )
 
     exit(ok ? 0 : 1)

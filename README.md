@@ -34,8 +34,8 @@ heartbeats, zombie-TCP detection, reconnects, and backoff. You call methods.
 - **Both encryption schemes** — NIP-44 v2 when the wallet advertises it
   (validated against [paulmillr's test vectors][vectors]), NIP-04 fallback for
   wallets that haven't migrated.
-- **Bulletproof long-running transport** — 30 s ping, 45 s pong deadline, 5-min
-  forced recycle, capped exponential backoff, clean SIGTERM handling. Built on
+- **Bulletproof long-running transport** — 15 s ping keepalive, 5-min forced
+  recycle, capped exponential backoff, clean SIGTERM handling. Built on
   [async-websocket][aw] (no dead EventMachine dependency).
 - **Two diagnostic methods** — `NwcRuby.test` (info, read tests, write test
   if applicable) and `NwcRuby.test_notifications` (listen forever in a separate
@@ -211,10 +211,10 @@ end
 ```
 
 Under the hood, this subscribes to both kind 23196 (NIP-04) and kind 23197
-(NIP-44 v2), dedupes by `payment_hash`, sends a WebSocket ping every 30 seconds,
-reconnects with exponential backoff if the pong deadline is missed, and
-force-recycles the connection every 5 minutes as a belt-and-suspenders check
-against middleboxes that silently drop stale TCP streams.
+(NIP-44 v2), dedupes by `payment_hash`, sends a WebSocket ping every 15 seconds
+to keep middleboxes from idle-closing the socket, reconnects with capped
+exponential backoff on failure, and force-recycles the connection every 5 minutes
+as a belt-and-suspenders check against silently dead TCP streams.
 
 #### Resuming after a restart
 

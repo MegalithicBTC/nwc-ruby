@@ -62,6 +62,10 @@ Layout/LineLength:
   Exclude:
     - "lib/nwc_ruby/test_runner.rb"
 
+Naming/FileName:
+  Exclude:
+    - "lib/nwc-ruby.rb"
+
 Naming/AccessorMethodName:
   Enabled: false
 

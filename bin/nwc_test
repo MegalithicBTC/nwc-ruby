@@ -16,8 +16,8 @@ require 'bundler/setup'
 require 'nwc_ruby'
 
 nwc_url = ENV.fetch('NWC_URL') do
-  abort "ERROR: NWC_URL env var is required.\n" \
-        "  NWC_URL=\"nostr+walletconnect://...\" #{$PROGRAM_NAME}"
+  abort "ERROR: NWC_URL env var is required.\n  " \
+        "NWC_URL=\"nostr+walletconnect://...\" #{$PROGRAM_NAME}"
 end
 
 case ARGV[0]
@@ -26,9 +26,9 @@ when 'notifications'
   exit 0
 else
   ok = NwcRuby.test(
-    nwc_url:                  nwc_url,
-    pay_to_lightning_address: ENV['PAY_TO_LIGHTNING_ADDRESS'],
-    pay_to_satoshis_amount:   Integer(ENV.fetch('PAY_TO_SATOSHIS_AMOUNT', 100))
+    nwc_url: nwc_url,
+    pay_to_lightning_address: ENV.fetch('PAY_TO_LIGHTNING_ADDRESS', nil),
+    pay_to_satoshis_amount: Integer(ENV.fetch('PAY_TO_SATOSHIS_AMOUNT', 100))
   )
   exit(ok ? 0 : 1)
 end

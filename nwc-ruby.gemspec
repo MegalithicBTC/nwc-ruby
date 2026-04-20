@@ -13,8 +13,8 @@ Gem::Specification.new do |spec|
     A production-grade Ruby client for Nostr Wallet Connect (NIP-47). Handles the Nostr
     protocol, NIP-04 and NIP-44 v2 encryption, secp256k1 key derivation, Schnorr signing,
     and — most importantly — a reliable long-running WebSocket connection to the relay
-    with heartbeat, pong deadline, forced recycle, exponential backoff, and SIGTERM
-    handling. Developers call `pay_invoice`, `make_invoice`, `lookup_invoice`, etc. and
+    with heartbeat pings, forced recycle, exponential backoff, and SIGTERM handling.
+    Developers call `pay_invoice`, `make_invoice`, `lookup_invoice`, etc. and
     `subscribe_to_notifications { |n| ... }` — the transport reliability is hidden.
   DESC
 
@@ -23,7 +23,7 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = '>= 3.2.0'
 
   spec.metadata['homepage_uri']          = spec.homepage
-  spec.metadata['source_code_uri']       = spec.homepage
+  spec.metadata['source_code_uri']       = "#{spec.homepage}/tree/main"
   spec.metadata['bug_tracker_uri']       = "#{spec.homepage}/issues"
   spec.metadata['changelog_uri']         = "#{spec.homepage}/blob/main/CHANGELOG.md"
   spec.metadata['rubygems_mfa_required'] = 'true'
@@ -40,9 +40,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'async', '~> 2.10'
   spec.add_dependency 'async-http', '~> 0.70'
   spec.add_dependency 'async-websocket', '~> 0.26'
-  spec.add_dependency 'base64'
+  spec.add_dependency 'base64', '~> 0.2'
   spec.add_dependency 'ecdsa', '~> 1.2'
-  spec.add_dependency 'logger'
+  spec.add_dependency 'logger', '~> 1.6'
   spec.add_dependency 'rbsecp256k1', '~> 6.0'
 
   spec.add_development_dependency 'rake',    '~> 13.0'

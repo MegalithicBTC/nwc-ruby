@@ -56,8 +56,8 @@ module NwcRuby
 
       if @pay_to_lightning_address
         if @info.read_only?
-          warn!("pay_to_lightning_address was provided but this is a READ-ONLY code — it does not support pay_invoice.")
-          warn!("  → Generate a read+write NWC code if you need to test outbound payments.")
+          warn!('pay_to_lightning_address was provided but this is a READ-ONLY code — it does not support pay_invoice.')
+          warn!('  → Generate a read+write NWC code if you need to test outbound payments.')
           @out.puts
         else
           run_write_tests
@@ -205,7 +205,10 @@ module NwcRuby
         try('lookup_invoice (payment_hash from previous step)', NIP47::Methods::LOOKUP_INVOICE) do
           result = @client.lookup_invoice(payment_hash: @test_payment_hash)
           @out.puts "    #{DIM}state=#{result['state']} amount=#{result['amount']} msats#{CLR}"
-          warn!("lookup_invoice: `state` is #{result['state'].inspect}, expected 'pending' for a fresh invoice (optional per NIP-47)") unless result['state'] == 'pending'
+          unless result['state'] == 'pending'
+            warn!("lookup_invoice: `state` is #{result['state'].inspect}, " \
+                  "expected 'pending' for a fresh invoice (optional per NIP-47)")
+          end
         end
       end
 
@@ -252,8 +255,12 @@ module NwcRuby
         fail!('make_invoice: `payment_hash` is not a 64-char hex')
       end
       fail!('make_invoice: `amount` should echo 1000') unless result['amount'] == 1_000
-      warn!("make_invoice: `type` is #{result['type'].inspect}, expected 'incoming' (optional per NIP-47)") unless result['type'] == 'incoming'
-      warn!("make_invoice: `state` is #{result['state'].inspect}, expected 'pending' (optional per NIP-47)") unless result['state'] == 'pending'
+      unless result['type'] == 'incoming'
+        warn!("make_invoice: `type` is #{result['type'].inspect}, expected 'incoming' (optional per NIP-47)")
+      end
+      return if result['state'] == 'pending'
+
+      warn!("make_invoice: `state` is #{result['state'].inspect}, expected 'pending' (optional per NIP-47)")
     end
 
     # --- Lightning address resolver ----------------------------------------
