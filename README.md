@@ -571,10 +571,9 @@ MIT. See [LICENSE](LICENSE).
 
 ## Prior art and thanks
 
-- [NIP-47 spec][nip47] — Alby, fiatjaf, and the Nostr community.
+- [NIP-47 spec][nip47]
 - [`@getalby/sdk`][alby-sdk] — the reference JavaScript implementation.
-- [BLFS][blfs] — the BTCPay Lightning Flash Sales conceptual blueprint that
-  inspired this Ruby port.
+- [BLFS][blfs] — Bitcoin Lightning For Shopify
 
 [alby-sdk]: https://github.com/getAlby/js-sdk/tree/master/src/nwc
 [blfs]: https://docs.megalithic.me/BLFS/
