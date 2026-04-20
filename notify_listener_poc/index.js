@@ -4,7 +4,7 @@
 import WebSocket from "ws";
 import { SimplePool, useWebSocketImplementation } from "nostr-tools/pool";
 import { nip04 } from "nostr-tools";
-import { nwc } from "@getalby/sdk";
+import { NWCClient } from "@getalby/sdk/nwc";
 
 // nostr-tools needs a WebSocket implementation under Node.
 useWebSocketImplementation(WebSocket);
@@ -16,7 +16,7 @@ if (!nwcUrl || !nwcUrl.startsWith("nostr+walletconnect://")) {
 }
 
 // Let the Alby SDK parse the NWC URL. NWCClient exposes the bits we need.
-const client = new nwc.NWCClient({ nostrWalletConnectUrl: nwcUrl });
+const client = new NWCClient({ nostrWalletConnectUrl: nwcUrl });
 const relayUrl = client.relayUrls[0];
 const walletPubkey = client.walletPubkey;
 const secret = client.secret;
@@ -29,8 +29,9 @@ console.log("wallet pk: ", walletPubkey);
 console.log("client pk: ", clientPubkey);
 console.log("--------------------\n");
 
-// enablePing + enableReconnect keeps the socket healthy over long runs.
-const pool = new SimplePool({ enablePing: true, enableReconnect: true });
+// enableReconnect keeps the socket healthy over long runs.
+// (enablePing uses a limit:0 probe that strfry rejects, so we skip it.)
+const pool = new SimplePool({ enableReconnect: true });
 
 // Long-lived subscription. SimplePool holds the WebSocket open and invokes
 // onevent for every matching event as it arrives — no polling.
