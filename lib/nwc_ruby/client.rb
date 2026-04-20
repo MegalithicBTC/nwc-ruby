@@ -147,7 +147,7 @@ module NwcRuby
                                    kinds: [NIP47::Methods::KIND_NOTIFICATION_NIP04,
                                            NIP47::Methods::KIND_NOTIFICATION_NIP44],
                                    sub_id: "nwc-#{SecureRandom.hex(4)}",
-                                   poll_interval: 5,
+                                   poll_interval: nil,
                                    &block)
       raise ArgumentError, 'block required' unless block
 

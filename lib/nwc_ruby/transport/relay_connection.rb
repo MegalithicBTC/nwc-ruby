@@ -221,7 +221,11 @@ module NwcRuby
         %w[TERM INT].each do |sig|
           trap(sig) do
             @stop = true
-            # Avoid logging from the trap handler (reentrancy).
+            # Close the socket to unblock the read loop.
+            begin
+              @conn&.close
+            rescue StandardError # rubocop:disable Lint/SuppressedException
+            end
           end
         end
       end
