@@ -13,12 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install libsecp256k1
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecp256k1-dev pkg-config
+
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
-
-      - name: Install libsecp256k1
-        run: sudo apt-get update && sudo apt-get install -y libsecp256k1-dev
 
       - uses: rubygems/release-gem@v1
