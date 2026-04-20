@@ -24,7 +24,10 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
+          bundler-cache: false
+
+      - name: Bundle install
+        run: bundle install
 
       - name: Run tests
         run: bundle exec rspec
