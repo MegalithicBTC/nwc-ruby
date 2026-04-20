@@ -13,14 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install libsecp256k1
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsecp256k1-dev pkg-config
+          sudo apt-get install -y build-essential automake pkg-config libtool libffi-dev libgmp-dev
 
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-          bundler-cache: true
+          bundler-cache: false
+
+      - name: Bundle install
+        run: bundle install
 
       - uses: rubygems/release-gem@v1

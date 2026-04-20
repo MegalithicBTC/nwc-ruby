@@ -16,23 +16,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install libsecp256k1
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsecp256k1-dev pkg-config
+          sudo apt-get install -y build-essential automake pkg-config libtool libffi-dev libgmp-dev
 
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: false
 
-      - name: Bundle install (clean)
-        run: |
-          bundle config set --local path vendor/bundle
-          gem install rbsecp256k1 -- --with-system-libraries
-          bundle install
-        env:
-          SECP256K1_LIB_PATH: /usr/lib/x86_64-linux-gnu
+      - name: Bundle install
+        run: bundle install
+
+      - name: Verify rbsecp256k1
+        run: bundle exec ruby -e 'require "secp256k1"; puts "secp256k1 OK"'
 
       - name: Run tests
         run: bundle exec rspec

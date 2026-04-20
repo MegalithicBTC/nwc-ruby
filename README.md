@@ -122,39 +122,41 @@ Or install directly:
 gem install nwc-ruby
 ```
 
-The `rbsecp256k1` dependency is a C extension that links against `libsecp256k1`.
-You **must** install the system library before `bundle install` — otherwise the
-native extension will fail to compile.
+The `rbsecp256k1` dependency is a C extension that bundles and compiles
+`libsecp256k1` from source during `gem install`. You need a C toolchain and
+a few libraries available **before** running `bundle install`.
 
 **macOS:**
 
 ```sh
-brew install secp256k1
+brew install automake openssl libtool pkg-config gmp libffi
 ```
 
 **Ubuntu / Debian:**
 
 ```sh
-sudo apt-get update && sudo apt-get install -y libsecp256k1-dev
+sudo apt-get update
+sudo apt-get install -y build-essential automake pkg-config libtool \
+  libffi-dev libgmp-dev
 ```
 
 **Alpine:**
 
 ```sh
-apk add secp256k1-dev
+apk add build-base automake autoconf libtool pkgconfig gmp-dev libffi-dev
 ```
 
 **Docker (Kamal / production):**
 
 ```dockerfile
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libsecp256k1-dev build-essential && rm -rf /var/lib/apt/lists/*
+      build-essential automake pkg-config libtool libffi-dev libgmp-dev \
+    && rm -rf /var/lib/apt/lists/*
 ```
 
 If you see `LoadError: cannot load such file -- secp256k1` at runtime, the
-library was not present when the gem's native extension was compiled. Install
-the library and run `gem pristine rbsecp256k1` (or re-run `bundle install`)
-to rebuild it.
+native extension wasn't compiled. Install the build dependencies above and
+run `gem pristine rbsecp256k1` (or re-run `bundle install`) to rebuild it.
 
 ---
 
