@@ -49,9 +49,14 @@ require_relative 'nwc_ruby/test_runner'
 # Returns true if every check passed, false otherwise. Output is streamed to
 # $stdout by default; pass `output: some_io` to redirect.
 module NwcRuby
-  # Convenience wrapper around TestRunner. See TestRunner for option docs.
+  # Run the diagnostic: info, read tests, and (if the code is read+write and
+  # a Lightning address is provided) a write test. Does NOT test notifications
+  # — run test_notifications in a separate process for that.
   #
-  # @return [Boolean] true if all checks passed, false otherwise.
+  # If pay_to_lightning_address is provided but the code is read-only, a
+  # helpful warning is printed instead of attempting the payment.
+  #
+  # @return [Boolean] true if all checks passed.
   def self.test(nwc_url:,
                 pay_to_lightning_address: nil,
                 pay_to_satoshis_amount: TestRunner::DEFAULT_SATOSHIS,
@@ -62,5 +67,16 @@ module NwcRuby
       pay_to_satoshis_amount: pay_to_satoshis_amount,
       output: output
     ).run
+  end
+
+  # Subscribe to notifications and block forever, printing each one.
+  # Run this in a separate process / terminal. Ctrl-C to stop.
+  #
+  # @return [Boolean] true (only returns on clean shutdown).
+  def self.test_notifications(nwc_url:, output: $stdout)
+    TestRunner.new(
+      nwc_url: nwc_url,
+      output: output
+    ).run_notifications
   end
 end

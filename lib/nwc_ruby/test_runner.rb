@@ -47,23 +47,58 @@ module NwcRuby
       @failures                 = []
     end
 
+    # Runs info + read tests + write tests (if applicable).
+    # Does NOT test notifications — run run_notifications in a separate process.
     def run
+      return false unless preamble
+
+      run_read_tests
+
+      if @pay_to_lightning_address
+        if @info.read_only?
+          warn!("pay_to_lightning_address was provided but this is a READ-ONLY code — it does not support pay_invoice.")
+          warn!("  → Generate a read+write NWC code if you need to test outbound payments.")
+          @out.puts
+        else
+          run_write_tests
+        end
+      end
+
+      summary
+      @failures.empty?
+    end
+
+    # Subscribes to notifications and blocks forever, printing each one.
+    # Ctrl-C / SIGTERM cause a clean exit. Run in a separate process.
+    def run_notifications
+      return false unless preamble
+
+      @out.puts "#{BOLD}Listening for notifications...#{CLR}"
+      @out.puts "#{DIM}Press Ctrl-C to stop.#{CLR}"
+      @out.puts
+
+      @client.subscribe_to_notifications do |n|
+        @out.puts "  #{PASS} #{Time.now.strftime('%Y-%m-%d %H:%M:%S')} — #{n.type}"
+        @out.puts "    #{DIM}payment_hash=#{n.payment_hash}#{CLR}"
+        @out.puts "    #{DIM}amount=#{n.amount_msats} msats#{CLR}"
+        @out.puts
+      end
+      # subscribe_to_notifications blocks until SIGTERM/SIGINT
+      true
+    end
+
+    private
+
+    # Shared setup: header, parse, info, mode, encryption.
+    def preamble
       header
       return false unless validate_connection_string
       return false unless fetch_info
 
       announce_mode
       check_encryption_support
-
-      run_read_tests
-      run_write_tests if @info.read_write? && @pay_to_lightning_address
-      run_inbound_payment_test
-
-      summary
-      @failures.empty?
+      true
     end
-
-    private
 
     def header
       @out.puts "#{BOLD}NWC Ruby diagnostic#{CLR}"
@@ -196,113 +231,6 @@ module NwcRuby
         unless result['preimage']&.match?(/\A[0-9a-f]{64}\z/)
           fail!("pay_invoice: `preimage` should be 64 hex chars, got #{result['preimage'].inspect}")
         end
-      end
-      @out.puts
-    end
-
-    def run_inbound_payment_test
-      @out.puts "#{BOLD}Inbound payment test#{CLR}  #{DIM}(verifies the wallet delivers payment_received notifications)#{CLR}"
-
-      unless @info.supports?(NIP47::Methods::MAKE_INVOICE)
-        @out.puts "  #{SKIP} wallet service does not support make_invoice — cannot run inbound test"
-        @out.puts
-        return
-      end
-
-      unless @info.supports_notifications?
-        warn!('wallet service does not advertise notifications in its info event')
-        warn!("  → We'll still print an invoice so you can test manually, but we cannot verify receipt via notifications.")
-      end
-
-      amount_msats = @pay_to_satoshis_amount * 1_000
-      invoice_result =
-        begin
-          @client.make_invoice(amount: amount_msats, description: 'nwc_ruby gem inbound test')
-        rescue WalletServiceError => e
-          fail!("make_invoice failed: #{e.code}: #{e.message} — cannot run inbound test")
-          @out.puts
-          return
-        rescue StandardError => e
-          fail!("make_invoice failed: #{e.class}: #{e.message} — cannot run inbound test")
-          @out.puts
-          return
-        end
-
-      invoice      = invoice_result['invoice']
-      payment_hash = invoice_result['payment_hash']
-      lud16        = @get_info_result && @get_info_result['lud16']
-
-      @out.puts
-      @out.puts "  #{BOLD}\e[36mPlease send a payment to exercise inbound notifications.#{CLR}"
-      @out.puts
-      if lud16
-        @out.puts "  #{BOLD}Option A — Lightning address (any amount works):#{CLR}"
-        @out.puts "    #{BOLD}#{lud16}#{CLR}"
-        @out.puts
-        @out.puts "  #{BOLD}Option B — BOLT11 invoice (#{@pay_to_satoshis_amount} sats, payment_hash will be matched):#{CLR}"
-      else
-        @out.puts "  #{BOLD}Pay this BOLT11 invoice (#{@pay_to_satoshis_amount} sats):#{CLR}"
-      end
-      @out.puts "    #{invoice}"
-      @out.puts
-      @out.puts "  #{DIM}Waiting up to 180 seconds for a payment_received notification...#{CLR}"
-      @out.puts "  #{DIM}Press Ctrl-C to stop waiting early.#{CLR}"
-      @out.puts
-
-      timeout  = 180
-      deadline = Time.now + timeout
-      received = []
-
-      # Run the subscription on a background thread so the main thread can
-      # tick down the deadline and respond to Ctrl-C.
-      sub_thread = Thread.new do
-        Thread.current.report_on_exception = false
-        begin
-          @client.subscribe_to_notifications(since: Time.now.to_i - 2) do |n|
-            received << n if n.type == 'payment_received'
-          end
-        rescue StandardError
-          # Shutting down or connection died — handled by main loop.
-        end
-      end
-
-      last_tick = nil
-      begin
-        while Time.now < deadline
-          break if received.any? { |n| n.payment_hash == payment_hash }
-
-          sleep 0.5
-          remaining = (deadline - Time.now).to_i
-          if remaining.positive? && (remaining % 30).zero? && remaining != last_tick
-            @out.puts "  #{DIM}... still waiting (#{remaining}s remaining)#{CLR}"
-            last_tick = remaining
-          end
-        end
-      rescue Interrupt
-        @out.puts
-        @out.puts "  #{DIM}Interrupted by user.#{CLR}"
-      end
-
-      @client.stop_notifications!
-      sub_thread.join(5)
-
-      matched = received.find { |n| n.payment_hash == payment_hash }
-
-      if matched
-        pass('Received payment_received notification matching our invoice.')
-        @out.puts "    #{DIM}payment_hash=#{matched.payment_hash}#{CLR}"
-        @out.puts "    #{DIM}amount=#{matched.amount_msats} msats#{CLR}"
-      elsif received.any?
-        pass("Received #{received.size} payment_received notification(s), but none matched our invoice's payment_hash.")
-        @out.puts "    #{DIM}(payments must have been sent to a different invoice, e.g. the lud16 address)#{CLR}"
-        received.each do |n|
-          @out.puts "    #{DIM}- payment_hash=#{n.payment_hash} amount=#{n.amount_msats} msats#{CLR}"
-        end
-        warn!('Inbound notifications are working for some invoices, but we never saw the specific one we generated.')
-        warn!('  → If you paid the BOLT11 above, the wallet service may have a notification delivery gap.')
-      else
-        warn!("No payment_received notifications arrived within #{timeout}s.")
-        warn!('  → Either no payment was sent, or the wallet service is not emitting notifications as it should.')
       end
       @out.puts
     end

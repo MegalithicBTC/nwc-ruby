@@ -37,11 +37,11 @@ heartbeats, zombie-TCP detection, reconnects, and backoff. You call methods.
 - **Bulletproof long-running transport** — 30 s ping, 45 s pong deadline, 5-min
   forced recycle, capped exponential backoff, clean SIGTERM handling. Built on
   [async-websocket][aw] (no dead EventMachine dependency).
-- **Diagnostic method** — `NwcRuby.test(...)` tells you whether your
-  NWC code is read-only or read+write, exercises every method the service
-  advertises, verifies that the wallet delivers `payment_received`
-  notifications, and flags non-conforming responses with actionable errors.
-  Callable from IRB, a Rails console, a spec, or your own rake task.
+- **Two diagnostic methods** — `NwcRuby.test` (info, read tests, write test
+  if applicable) and `NwcRuby.test_notifications` (listen forever in a separate
+  process). Each tells you whether your NWC code works, exercises the methods
+  the service advertises, and flags non-conforming responses with actionable
+  errors. Callable from IRB, a Rails console, a spec, or a rake task.
 
 [vectors]: https://github.com/paulmillr/nip44/blob/main/nip44.vectors.json
 [aw]: https://github.com/socketry/async-websocket
@@ -101,7 +101,7 @@ puts client.capabilities # => ["get_info", "get_balance", "make_invoice", ...]
 Or from IRB / a Rails console:
 
 ```ruby
-NwcRuby.test(nwc_url: ENV["NWC_URL"])
+NwcRuby.test_readonly(nwc_url: ENV["NWC_URL"])
 # ...
 # ℹ  This is a READ-ONLY code. It cannot move funds.
 ```
@@ -305,36 +305,46 @@ host goes down, the others keep listening — but they do not partition work.
 
 ## Testing against a real wallet
 
-The gem exposes a diagnostic method you can call from anywhere — IRB, a Rails
-console, an RSpec test, or a rake task in your own app. There are no rake
-tasks shipped from the gem itself.
+The gem ships two diagnostic methods. Call them from anywhere — IRB, a Rails
+console, an RSpec test, or a rake task in your own app.
+
+### `NwcRuby.test` — info, read tests, write test
+
+Parses the connection string, fetches info, runs all read tests (`get_info`,
+`get_balance`, `list_transactions`, `make_invoice`, `lookup_invoice`). If the
+code is read+write **and** you provide a Lightning address, it also sends a
+real payment via `pay_invoice`. If you provide a Lightning address but the code
+is read-only, it prints a helpful warning instead of failing.
 
 ```ruby
 NwcRuby.test(
   nwc_url:                  ENV["NWC_URL"],
-  pay_to_lightning_address: "you@getalby.com", # optional
-  pay_to_satoshis_amount:   10                  # default: 100
+  pay_to_lightning_address: "you@rizful.com", # optional — only used if code is read+write
+  pay_to_satoshis_amount:   10                # default: 100
 )
-# => true if every check passed, false otherwise
+# => true if all checks passed, false otherwise
 ```
 
-**Parameters:**
+### `NwcRuby.test_notifications` — listen for notifications
 
-- `nwc_url` _(required)_ — the `nostr+walletconnect://` connection string.
-- `pay_to_lightning_address` _(optional)_ — a Lightning address (e.g. `alice@getalby.com`). Only used if the NWC code is read+write; the runner resolves it via LNURL-pay to fetch an invoice and attempts an outbound payment. Omit for read-only codes.
-- `pay_to_satoshis_amount` _(optional, default 100)_ — amount used for both the outbound write test and the inbound invoice generated for the notification test. Keep it small while you're verifying things.
+Subscribes to notifications and **blocks forever**, printing each one as it
+arrives. Run this in a **separate terminal / process**. Ctrl-C to stop.
 
-**What the runner does, in order:**
+```ruby
+NwcRuby.test_notifications(nwc_url: ENV["NWC_URL"])
+```
 
-1. Parses the connection string, prints the derived pubkeys and relay URL.
-2. Fetches the kind-13194 info event; announces **read-only** or **read+write** with a colored warning.
-3. Lists every NIP-47 method and whether the wallet supports it.
-4. Reports whether the wallet advertises NIP-44 v2 or only NIP-04 encryption.
-5. Runs `get_info`, `get_balance`, `list_transactions`, `make_invoice` (probe), `lookup_invoice` — with sanity checks on the shape of each response.
-6. If the code is read+write _and_ you passed `pay_to_lightning_address`: resolves the address via LNURL-pay and calls `pay_invoice` for `pay_to_satoshis_amount` sats.
-7. Calls `make_invoice` for `pay_to_satoshis_amount` sats, prints the BOLT11 (and the `lud16` from `get_info` if available), then blocks for up to 180 seconds waiting for a `payment_received` notification whose `payment_hash` matches. Ctrl-C aborts the wait.
+### Using `bin/nwc_test`
 
-### Calling it from a Rails console
+```sh
+# Test (read tests + write test if applicable)
+NWC_URL="..." PAY_TO_LIGHTNING_ADDRESS=you@example.com bin/nwc_test
+
+# Listen for notifications (blocks forever — run in a separate terminal)
+NWC_URL="..." bin/nwc_test notifications
+```
+
+### Calling from a Rails console
 
 ```sh
 bin/rails c
@@ -344,33 +354,29 @@ bin/rails c
 NwcRuby.test(nwc_url: ENV["NWC_URL"])
 ```
 
-### Wrapping it in your own rake task
-
-If you want to run this from CI or as a manual command, put a thin task in
-**your Rails app** (not in this gem):
+### Wrapping in your own rake tasks
 
 ```ruby
 # lib/tasks/nwc.rake (in your Rails app)
 namespace :nwc do
-  desc "Diagnose an NWC connection string end-to-end."
-  task :test, %i[nwc_url pay_to_lightning_address pay_to_satoshis_amount] => :environment do |_t, args|
+  desc "Run NWC diagnostic (read tests + write test if applicable)."
+  task test: :environment do
     ok = NwcRuby.test(
-      nwc_url:                  args[:nwc_url],
-      pay_to_lightning_address: args[:pay_to_lightning_address],
-      pay_to_satoshis_amount:   Integer(args[:pay_to_satoshis_amount] || 100)
+      nwc_url:                  ENV.fetch("NWC_URL"),
+      pay_to_lightning_address: ENV["PAY_TO_LIGHTNING_ADDRESS"],
+      pay_to_satoshis_amount:   Integer(ENV.fetch("PAY_TO_SATOSHIS_AMOUNT", 100))
     )
     exit(ok ? 0 : 1)
+  end
+
+  desc "Listen for NWC notifications (blocks forever)."
+  task notifications: :environment do
+    NwcRuby.test_notifications(nwc_url: ENV.fetch("NWC_URL"))
   end
 end
 ```
 
-Then:
-
-```sh
-bundle exec rake 'nwc:test[nostr+walletconnect://...,you@getalby.com,10]'
-```
-
-### Sample output
+### Sample output (`NwcRuby.test`)
 
 ```
 NWC Ruby diagnostic
@@ -404,28 +410,25 @@ Read tests
   ✓ lookup_invoice (payment_hash from previous step) (241ms)
 
 Write tests  (read+write code detected, Lightning address provided)
-  ✓ pay_invoice (10 sats to you@getalby.com) (1843ms)
-
-Inbound payment test  (verifies the wallet delivers payment_received notifications)
-
-  Please send a payment to exercise inbound notifications.
-
-  Option A — Lightning address (any amount works):
-    alice@getalby.com
-
-  Option B — BOLT11 invoice (10 sats, payment_hash will be matched):
-    lnbc100n1p3...
-
-  Waiting up to 180 seconds for a payment_received notification...
-  Press Ctrl-C to stop waiting early.
-
-  ... still waiting (150s remaining)
-  ... still waiting (120s remaining)
-  ✓ Received payment_received notification matching our invoice.
-    payment_hash=a7b3...
-    amount=10000 msats
+  ✓ pay_invoice (10 sats to you@rizful.com) (1843ms)
 
 All tests passed.
+```
+
+### Sample output (`NwcRuby.test_notifications`)
+
+```
+NWC Ruby diagnostic
+
+  ✓ Connection string parsed
+  ✓ Fetched info event (kind 13194)
+
+Listening for notifications...
+Press Ctrl-C to stop.
+
+  ✓ 2026-04-20 21:19:05 — payment_received
+    payment_hash=58e45fee1b5ebe83807944896ff99e9252594ef3be4e3404c3ba2ab4536a9988
+    amount=11000 msats
 ```
 
 When the wallet service misbehaves, the runner flags it:
@@ -533,15 +536,21 @@ bundle install
 bundle exec rspec
 ```
 
-To run the diagnostic against a real wallet while developing the gem itself:
+To run the diagnostics against a real wallet while developing the gem itself:
 
 ```sh
+# Test (read + write if applicable)
 bundle exec ruby -Ilib -rnwc_ruby -e '
   NwcRuby.test(
     nwc_url: ENV["NWC_URL"],
     pay_to_lightning_address: ENV["LN_ADDR"],
     pay_to_satoshis_amount: 10
   )
+'
+
+# Listen for notifications (separate terminal)
+bundle exec ruby -Ilib -rnwc_ruby -e '
+  NwcRuby.test_notifications(nwc_url: ENV["NWC_URL"])
 '
 ```
 
