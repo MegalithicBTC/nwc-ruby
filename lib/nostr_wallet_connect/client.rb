@@ -191,6 +191,7 @@ module NostrWalletConnect
 
     private
 
+    # rubocop:disable Metrics/MethodLength
     def call(method, params)
       ensure_supports!(method)
       encryption = info.preferred_encryption
@@ -251,6 +252,7 @@ module NostrWalletConnect
 
       result.result
     end
+    # rubocop:enable Metrics/MethodLength
 
     def fetch_info
       endpoint  = Async::HTTP::Endpoint.parse(@connection_string.relays.first)

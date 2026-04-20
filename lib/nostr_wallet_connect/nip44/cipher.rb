@@ -56,6 +56,7 @@ module NostrWalletConnect
 
       # @param payload [String] base64 NIP-44 payload
       # @return [String] UTF-8 plaintext
+      # rubocop:disable Metrics/AbcSize
       def decrypt(payload, privkey_hex, pubkey_hex)
         raise EncryptionError, 'payload is nil or empty' if payload.nil? || payload.empty?
         raise EncryptionError, "payload starts with '#' (not encrypted)" if payload.start_with?('#')
@@ -86,6 +87,7 @@ module NostrWalletConnect
         padded = chacha20(chacha_key, chacha_nonce, ciphertext)
         unpad(padded).force_encoding('UTF-8')
       end
+      # rubocop:enable Metrics/AbcSize
 
       # --- Internals ------------------------------------------------------
 
