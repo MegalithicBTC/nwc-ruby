@@ -1,0 +1,16 @@
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+*.gem
+.rspec_status
+.rspec_persistence
+Gemfile.lock
+.env
+.env.*
+!.env.example
+.DS_Store
