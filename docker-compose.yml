@@ -1,6 +1,7 @@
 services:
   test:
     build: .
+    init: true
     command: bundle exec rspec
     volumes:
       - .:/gem

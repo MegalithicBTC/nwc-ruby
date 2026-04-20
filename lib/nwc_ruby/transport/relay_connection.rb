@@ -4,7 +4,6 @@ require 'async'
 require 'async/clock'
 require 'async/http/endpoint'
 require 'async/websocket/client'
-require 'protocol/websocket/ping_frame'
 
 module NwcRuby
   module Transport
@@ -13,10 +12,11 @@ module NwcRuby
     # This is the reliability layer: everything the developer shouldn't have to
     # think about. It handles:
     #
-    #   - RFC 6455 ping every `ping_interval` seconds
-    #   - pong deadline: if no pong in `pong_timeout`, reconnect
+    #   - RFC 6455 ping every `ping_interval` seconds (keeps middleboxes from
+    #     idle-closing the socket; the relay's pong reply is handled by the
+    #     protocol layer automatically)
     #   - forced recycle every `recycle_interval` (belt-and-suspenders against
-    #     middlebox / relay bugs that both pings survive)
+    #     relay bugs or silent connection death)
     #   - capped exponential backoff on reconnect (1s → 2 → 4 → ... → 60s)
     #   - SIGTERM / SIGINT handling for clean Kamal deploys
     #
@@ -27,8 +27,7 @@ module NwcRuby
     #   conn.on_open  { |c| c.send_req(sub_id: "foo", filters: [...]) }
     #   conn.run!  # blocks until stop! or signal
     class RelayConnection
-      DEFAULT_PING_INTERVAL    = 30
-      DEFAULT_PONG_TIMEOUT     = 45
+      DEFAULT_PING_INTERVAL    = 15
       DEFAULT_RECYCLE_INTERVAL = 300
       DEFAULT_MAX_BACKOFF      = 60
 
@@ -36,31 +35,42 @@ module NwcRuby
 
       def initialize(url:,
                      ping_interval: DEFAULT_PING_INTERVAL,
-                     pong_timeout: DEFAULT_PONG_TIMEOUT,
                      recycle_interval: DEFAULT_RECYCLE_INTERVAL,
                      max_backoff: DEFAULT_MAX_BACKOFF,
                      logger: default_logger,
                      install_signal_traps: true)
         @url              = url
         @ping_interval    = ping_interval
-        @pong_timeout     = pong_timeout
         @recycle_interval = recycle_interval
         @max_backoff      = max_backoff
+        @poll_interval    = poll_interval
         @logger           = logger
 
         @event_cb         = nil
         @open_cb          = nil
         @error_cb         = nil
+        @poll_cb          = nil
         @stop             = false
         @signal_traps     = install_signal_traps
+        @top_task         = nil
       end
 
       def on_event(&block) = @event_cb = block
       def on_open(&block) = @open_cb = block
       def on_error(&block) = @error_cb = block
+      def on_poll(&block) = @poll_cb = block
 
       def stop!
         @stop = true
+        # Close the websocket to unblock the read loop. The @stop flag
+        # will cause the run loop to exit on its own. We avoid calling
+        # @top_task.stop here because stop! may be called from a
+        # different thread than the Async reactor.
+        begin
+          @conn&.close
+        rescue StandardError
+          nil
+        end
       end
 
       # Blocks forever, reconnecting as needed, until #stop! is called
@@ -70,11 +80,14 @@ module NwcRuby
         backoff = 1
 
         Async do |top|
+          @top_task = top
           until @stop
             begin
               run_one_connection(top)
               backoff = 1
             rescue StandardError => e
+              break if @stop
+
               @logger.warn("[nwc] connection failed: #{e.class}: #{e.message}")
               @error_cb&.call(e)
               sleep_seconds = [backoff, @max_backoff].min
@@ -83,6 +96,8 @@ module NwcRuby
               backoff *= 2
             end
           end
+        ensure
+          @top_task = nil
         end
       end
 
@@ -113,34 +128,51 @@ module NwcRuby
       private
 
       def run_one_connection(top)
-        endpoint  = Async::HTTP::Endpoint.parse(@url)
+        endpoint  = Async::HTTP::Endpoint.parse(@url, alpn_protocols: ['http/1.1'])
         opened_at = Async::Clock.now
-        last_pong = Async::Clock.now
         @logger.info("[nwc] connecting to #{@url}")
 
         Async::WebSocket::Client.connect(endpoint) do |conn|
           @conn = conn
-          conn.on_pong = ->(_) { last_pong = Async::Clock.now }
 
           heartbeat = top.async do
             loop do
+              conn.send_ping
+              conn.flush
+              @logger.debug("[nwc] ping sent")
+
               sleep @ping_interval
               break if @stop
 
-              conn.write(Protocol::WebSocket::PingFrame.new(data: 'hb'))
-              conn.flush
-
-              raise TransportError, "pong timeout (#{@pong_timeout}s)" if Async::Clock.now - last_pong > @pong_timeout
               if Async::Clock.now - opened_at > @recycle_interval
                 raise TransportError, "recycle (#{@recycle_interval}s)"
               end
             end
           end
 
+          # Some relays (e.g. strfry) store ephemeral events temporarily but
+          # do not push them to active subscriptions. Periodic re-subscribe
+          # forces the relay to return any newly-stored events.
+          poll = if @poll_interval && @poll_cb
+                   top.async do
+                     loop do
+                       sleep @poll_interval
+                       break if @stop
+
+                       begin
+                         @poll_cb.call(self)
+                       rescue StandardError => e
+                         @logger.warn("[nwc] poll error: #{e.message}")
+                       end
+                     end
+                   end
+                 end
+
           @open_cb&.call(self)
           read_loop(conn)
         ensure
           heartbeat&.stop
+          poll&.stop
           @conn = nil
           begin
             conn&.close

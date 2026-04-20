@@ -170,7 +170,7 @@ module NwcRuby
         try('lookup_invoice (payment_hash from previous step)', NIP47::Methods::LOOKUP_INVOICE) do
           result = @client.lookup_invoice(payment_hash: @test_payment_hash)
           @out.puts "    #{DIM}state=#{result['state']} amount=#{result['amount']} msats#{CLR}"
-          fail!("lookup_invoice: `state` should be 'pending' for a fresh invoice") unless result['state'] == 'pending'
+          warn!("lookup_invoice: `state` is #{result['state'].inspect}, expected 'pending' for a fresh invoice (optional per NIP-47)") unless result['state'] == 'pending'
         end
       end
 
@@ -261,8 +261,8 @@ module NwcRuby
           @client.subscribe_to_notifications(since: Time.now.to_i - 2) do |n|
             received << n if n.type == 'payment_received'
           end
-        rescue TransportError
-          # Connection died; main loop will notice and report.
+        rescue StandardError
+          # Shutting down or connection died — handled by main loop.
         end
       end
 
@@ -283,7 +283,8 @@ module NwcRuby
         @out.puts "  #{DIM}Interrupted by user.#{CLR}"
       end
 
-      sub_thread.kill if sub_thread.alive?
+      @client.stop_notifications!
+      sub_thread.join(5)
 
       matched = received.find { |n| n.payment_hash == payment_hash }
 
@@ -323,8 +324,8 @@ module NwcRuby
         fail!('make_invoice: `payment_hash` is not a 64-char hex')
       end
       fail!('make_invoice: `amount` should echo 1000') unless result['amount'] == 1_000
-      fail!("make_invoice: `type` should be 'incoming'") unless result['type'] == 'incoming'
-      fail!("make_invoice: `state` should be 'pending'") unless result['state'] == 'pending'
+      warn!("make_invoice: `type` is #{result['type'].inspect}, expected 'incoming' (optional per NIP-47)") unless result['type'] == 'incoming'
+      warn!("make_invoice: `state` is #{result['state'].inspect}, expected 'pending' (optional per NIP-47)") unless result['state'] == 'pending'
     end
 
     # --- Lightning address resolver ----------------------------------------

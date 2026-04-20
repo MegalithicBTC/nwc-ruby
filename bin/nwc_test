@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Quick diagnostic for an NWC connection string.
+#
+# Usage:
+#   NWC_URL="nostr+walletconnect://..." bin/nwc_test
+#   NWC_URL="..." PAY_TO_LIGHTNING_ADDRESS=you@example.com PAY_TO_SATOSHIS_AMOUNT=10 bin/nwc_test
+
+require 'bundler/setup'
+require 'nwc_ruby'
+
+nwc_url = ENV.fetch('NWC_URL') do
+  abort "ERROR: NWC_URL env var is required.\n" \
+        "  NWC_URL=\"nostr+walletconnect://...\" #{$PROGRAM_NAME}"
+end
+
+ok = NwcRuby.test(
+  nwc_url:                  nwc_url,
+  pay_to_lightning_address: ENV['PAY_TO_LIGHTNING_ADDRESS'],
+  pay_to_satoshis_amount:   Integer(ENV.fetch('PAY_TO_SATOSHIS_AMOUNT', 100))
+)
+
+exit(ok ? 0 : 1)

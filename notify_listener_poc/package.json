@@ -1,0 +1,14 @@
+{
+  "name": "nwc-notify-listener-poc",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "NWC notification listener POC — long-lived nostr subscription, no polling",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@getalby/sdk": "^7.0.0",
+    "nostr-tools": "^2.23.3",
+    "ws": "^8.18.0"
+  }
+}

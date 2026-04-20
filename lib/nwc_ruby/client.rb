@@ -120,6 +120,11 @@ module NwcRuby
       call(NIP47::Methods::SIGN_MESSAGE, { 'message' => message })
     end
 
+    # Stop a running subscribe_to_notifications listener.
+    def stop_notifications!
+      @notification_connection&.stop!
+    end
+
     # -- Notification listener -----------------------------------------------
 
     # Subscribe to payment_received / payment_sent notifications from the
@@ -142,28 +147,48 @@ module NwcRuby
                                    kinds: [NIP47::Methods::KIND_NOTIFICATION_NIP04,
                                            NIP47::Methods::KIND_NOTIFICATION_NIP44],
                                    sub_id: "nwc-#{SecureRandom.hex(4)}",
+                                   poll_interval: 5,
                                    &block)
       raise ArgumentError, 'block required' unless block
 
       seen = {}
-      conn = Transport::RelayConnection.new(url: @connection_string.relays.first, logger: @logger)
+      last_seen_at = since
+      filters = [{
+        'authors' => [@connection_string.wallet_pubkey],
+        '#p' => [@connection_string.client_pubkey],
+        'kinds' => kinds,
+        'since' => since
+      }]
+
+      conn = Transport::RelayConnection.new(
+        url: @connection_string.relays.first,
+        logger: @logger,
+        poll_interval: poll_interval
+      )
+      @notification_connection = conn
 
       conn.on_open do |c|
-        c.send_req(
-          sub_id: sub_id,
-          filters: [{
-            'authors' => [@connection_string.wallet_pubkey],
-            '#p' => [@connection_string.client_pubkey],
-            'kinds' => kinds,
-            'since' => since
-          }]
-        )
+        @logger.info("[nwc] subscribing sub_id=#{sub_id} client_pubkey=#{@connection_string.client_pubkey} wallet_pubkey=#{@connection_string.wallet_pubkey} kinds=#{kinds.inspect} since=#{since}")
+        c.send_req(sub_id: sub_id, filters: filters)
+      end
+
+      # Periodic re-subscribe: some relays (e.g. strfry) store ephemeral
+      # events temporarily but never push them to existing subscriptions.
+      # Re-sending the REQ with the same sub_id forces the relay to return
+      # any newly-stored events.
+      conn.on_poll do |c|
+        filters[0]['since'] = last_seen_at
+        @logger.debug("[nwc] re-subscribing sub_id=#{sub_id} since=#{last_seen_at}")
+        c.send_req(sub_id: sub_id, filters: filters)
       end
 
       conn.on_event do |_sub, event_hash|
         event = Event.from_hash(event_hash)
         next unless event.valid_signature?
         next unless event.pubkey == @connection_string.wallet_pubkey
+
+        # Advance the poll watermark so we don't re-fetch old events.
+        last_seen_at = event.created_at if event.created_at && event.created_at > last_seen_at
 
         begin
           notification = NIP47::Notification.parse(event, @connection_string.secret, @connection_string.wallet_pubkey)
@@ -200,7 +225,7 @@ module NwcRuby
       result   = nil
 
       Async do
-        endpoint = Async::HTTP::Endpoint.parse(@connection_string.relays.first)
+        endpoint = Async::HTTP::Endpoint.parse(@connection_string.relays.first, alpn_protocols: ['http/1.1'])
         Async::WebSocket::Client.connect(endpoint) do |conn|
           request_event = NIP47::Request.build(
             method: method,
@@ -255,7 +280,7 @@ module NwcRuby
     # rubocop:enable Metrics/MethodLength
 
     def fetch_info
-      endpoint  = Async::HTTP::Endpoint.parse(@connection_string.relays.first)
+      endpoint  = Async::HTTP::Endpoint.parse(@connection_string.relays.first, alpn_protocols: ['http/1.1'])
       deadline  = Time.now + @request_timeout
       result    = nil
 
