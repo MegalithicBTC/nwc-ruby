@@ -52,7 +52,7 @@ module NostrWalletConnect
 
       # True when the connection exposes no fund-moving methods.
       def read_only?
-        (@methods & Methods::MUTATING).empty?
+        !@methods.intersect?(Methods::MUTATING)
       end
 
       def read_write?

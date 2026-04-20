@@ -33,7 +33,7 @@ Gem::Specification.new do |spec|
     'README.md',
     'LICENSE',
     'CHANGELOG.md',
-    'nostr_wallet_connect.gemspec'
+    'nwc-ruby.gemspec'
   ]
   spec.require_paths = ['lib']
 

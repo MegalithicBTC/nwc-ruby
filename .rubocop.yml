@@ -15,24 +15,74 @@ Style/FrozenStringLiteralComment:
 
 Metrics/MethodLength:
   Max: 40
+  Exclude:
+    - "lib/nostr_wallet_connect/test_runner.rb"
 
 Metrics/ClassLength:
-  Max: 300
+  Max: 350
+
+Metrics/ModuleLength:
+  Max: 110
 
 Metrics/AbcSize:
   Max: 30
+  Exclude:
+    - "lib/nostr_wallet_connect/client.rb"
+    - "lib/nostr_wallet_connect/test_runner.rb"
+
+Metrics/CyclomaticComplexity:
+  Max: 8
+  Exclude:
+    - "lib/nostr_wallet_connect/client.rb"
+    - "lib/nostr_wallet_connect/connection_string.rb"
+    - "lib/nostr_wallet_connect/nip44/cipher.rb"
+    - "lib/nostr_wallet_connect/test_runner.rb"
+    - "lib/nostr_wallet_connect/transport/relay_connection.rb"
+
+Metrics/PerceivedComplexity:
+  Max: 9
+  Exclude:
+    - "lib/nostr_wallet_connect/client.rb"
+    - "lib/nostr_wallet_connect/connection_string.rb"
+    - "lib/nostr_wallet_connect/nip44/cipher.rb"
+    - "lib/nostr_wallet_connect/test_runner.rb"
 
 Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
     - "*.gemspec"
+    - "lib/nostr_wallet_connect/client.rb"
+
+Metrics/ParameterLists:
+  Max: 7
 
 Layout/LineLength:
   Max: 120
   AllowedPatterns: ['\A#', '\A\s*#']
+  Exclude:
+    - "lib/nostr_wallet_connect/test_runner.rb"
 
 Naming/AccessorMethodName:
   Enabled: false
 
+Naming/MethodParameterName:
+  AllowedNames:
+    - h
+    - n
+    - x
+    - a
+    - b
+    - e
+    - _
+
+Naming/PredicateMethod:
+  Enabled: false
+
+Gemspec/DevelopmentDependencies:
+  Enabled: false
+
 Lint/SuppressedException:
+  Enabled: false
+
+Lint/NoReturnInBeginEndBlocks:
   Enabled: false

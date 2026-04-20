@@ -10,7 +10,7 @@ RUN apt-get update && \
 WORKDIR /gem
 
 # Install gems (cached unless Gemfile/gemspec change)
-COPY Gemfile nostr_wallet_connect.gemspec ./
+COPY Gemfile nwc-ruby.gemspec ./
 COPY lib/nostr_wallet_connect/version.rb lib/nostr_wallet_connect/version.rb
 RUN bundle install --jobs 16
 

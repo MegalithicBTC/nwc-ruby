@@ -89,7 +89,7 @@ bundle install
 bundle exec rspec        # all green
 bundle exec rubocop      # no offenses
 
-gem build nostr_wallet_connect.gemspec
+gem build nwc-ruby.gemspec
 # => Successfully built RubyGem
 # => Name: nwc-ruby
 # => Version: 0.1.0

@@ -193,7 +193,7 @@ module NostrWalletConnect
           NIP47::Methods::PAY_INVOICE) do
         result = @client.pay_invoice(invoice: invoice_from_lnaddr)
         @out.puts "    #{DIM}preimage=#{result['preimage']}#{CLR}"
-        unless result['preimage'] && result['preimage'].match?(/\A[0-9a-f]{64}\z/)
+        unless result['preimage']&.match?(/\A[0-9a-f]{64}\z/)
           fail!("pay_invoice: `preimage` should be 64 hex chars, got #{result['preimage'].inspect}")
         end
       end
@@ -273,7 +273,7 @@ module NostrWalletConnect
 
           sleep 0.5
           remaining = (deadline - Time.now).to_i
-          if remaining > 0 && remaining % 30 == 0 && remaining != last_tick
+          if remaining.positive? && (remaining % 30).zero? && remaining != last_tick
             @out.puts "  #{DIM}... still waiting (#{remaining}s remaining)#{CLR}"
             last_tick = remaining
           end
