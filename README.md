@@ -2,6 +2,14 @@
 
 A production-grade Ruby client for [Nostr Wallet Connect (NIP-47)][nip47].
 
+Accept and track Bitcoin Lightning payments in your Rails app without running
+any Lightning infrastructure yourself. Generate Lightning invoices for your
+users to pay, then get notified the instant each one settles — all by talking
+to a Nostr Wallet Connect (NWC) service that someone else operates. The gem
+works with any NWC-compatible backend (Rizful, Alby Hub, Alby Cloud, CoinOs,
+any NIP-47 wallet service), so you're not locked into a single provider and
+can swap vendors by changing one environment variable.
+
 ```ruby
 require "nwc_ruby"
 
