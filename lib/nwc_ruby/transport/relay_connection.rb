@@ -63,14 +63,19 @@ module NwcRuby
 
       def stop!
         @stop = true
-        # Close the websocket to unblock the read loop. The @stop flag
-        # will cause the run loop to exit on its own. We avoid calling
-        # @top_task.stop here because stop! may be called from a
-        # different thread than the Async reactor.
-        begin
-          @conn&.close
-        rescue StandardError
-          nil
+        # Poke the signal pipe if available (works from any thread); the
+        # watcher task will call @top_task.stop from inside the reactor.
+        # If we're already inside the reactor thread/fiber, we can stop
+        # the top task directly.
+        if @signal_pipe_w
+          begin
+            @signal_pipe_w.write_nonblock('.')
+          rescue IO::WaitWritable, Errno::EPIPE, IOError
+            nil
+          end
+        else
+          task = @top_task
+          task&.stop
         end
       end
 
@@ -82,10 +87,15 @@ module NwcRuby
 
         Async do |top|
           @top_task = top
+          signal_watcher = start_signal_watcher(top)
           until @stop
             begin
               run_one_connection(top)
               backoff = 1
+            rescue Interrupt, Async::Stop
+              # Ctrl-C / SIGTERM / task.stop: exit cleanly.
+              @stop = true
+              break
             rescue StandardError => e
               break if @stop
 
@@ -97,7 +107,12 @@ module NwcRuby
               backoff *= 2
             end
           end
+        rescue Interrupt
+          # Signal arrived while not inside a connection; just exit.
+          @stop = true
         ensure
+          signal_watcher&.stop
+          close_signal_pipe
           @top_task = nil
         end
       end
@@ -219,17 +234,49 @@ module NwcRuby
       end
 
       def install_traps
+        # Keep signal handlers tiny. We can't do much from inside a Ruby
+        # signal handler:
+        #   - SSL I/O / socket close can deadlock.
+        #   - Async::Task#stop takes a Mutex, which raises
+        #     "can't be called from trap context (ThreadError)".
+        #   - Thread.new { task.stop } runs outside the reactor and
+        #     Fiber.scheduler is nil there.
+        # So: flip a flag and poke a self-pipe. An Async task watches the
+        # read end of the pipe and calls @top_task.stop from inside the
+        # reactor, which is the only safe place to do it.
+        @signal_pipe_r, @signal_pipe_w = IO.pipe
         %w[TERM INT].each do |sig|
           trap(sig) do
             @stop = true
-            # Close the socket to unblock the read loop.
             begin
-              @conn&.close
-            rescue StandardError
+              @signal_pipe_w.write_nonblock('.')
+            rescue IO::WaitWritable, Errno::EPIPE, IOError
               nil
             end
           end
         end
+      end
+
+      def start_signal_watcher(top)
+        return unless @signal_pipe_r
+
+        top.async do
+          @signal_pipe_r.read(1)
+          @logger.debug('[nwc] signal received, stopping')
+          top.stop
+        rescue IOError, Errno::EBADF
+          nil
+        end
+      end
+
+      def close_signal_pipe
+        [@signal_pipe_r, @signal_pipe_w].each do |io|
+          io&.close
+        rescue IOError
+          nil
+        end
+        @signal_pipe_r = nil
+        @signal_pipe_w = nil
       end
 
       def default_logger
