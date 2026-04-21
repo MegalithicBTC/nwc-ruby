@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-04-21
+
+### Fixed
+
+- Ctrl+C / SIGINT / SIGTERM now reliably exits the notification listener. The
+  previous trap handler called `@conn.close` directly, which deadlocks because
+  closing an SSL socket from inside a Ruby signal handler is unsafe
+  (`docker stop` was the only way out).
+- Replaced the trap-based close with a self-pipe: the trap only flips `@stop`
+  and writes one byte to a pipe; an `Async` task reads from the pipe inside the
+  reactor and calls `top.stop` from the correct fiber context. This avoids two
+  further async-specific pitfalls discovered along the way — `Async::Task#stop`
+  raises `ThreadError: can't be called from trap context` (uses a Mutex), and
+  offloading to `Thread.new { task.stop }` fails with `NoMethodError` on
+  `Fiber.scheduler` because the reactor lives on a different thread.
+- Added `rescue Interrupt, Async::Stop` at the top of the reconnect-loop rescue
+  chain in `RelayConnection#run!` so the stop signal is not swallowed by the
+  generic reconnect-on-error path.
+
 ## [0.2.1] — 2026-04-20
 
 ### Fixed
