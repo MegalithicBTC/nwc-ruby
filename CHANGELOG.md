@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Silenced the noisy `Async::Task` warn log ("Task may have ended with
+  unhandled exception") that was emitted every `recycle_interval` (default
+  5 min) by the heartbeat task. The forced recycle used to be signaled by
+  raising `TransportError` from inside the heartbeat's child Async task; the
+  parent's reconnect loop caught it correctly, but Async's console logger
+  logged the unhandled-in-child exception with a full backtrace first.
+  The recycle is now signaled by setting an `@recycle_requested` flag and
+  closing the websocket, which unblocks the read loop and lets
+  `run_one_connection` return normally without any exception crossing a task
+  boundary.
+
 ## [0.2.2] — 2026-04-21
 
 ### Fixed

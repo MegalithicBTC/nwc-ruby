@@ -146,6 +146,7 @@ module NwcRuby
       def run_one_connection(top)
         endpoint  = Async::HTTP::Endpoint.parse(@url, alpn_protocols: ['http/1.1'])
         opened_at = Async::Clock.now
+        @recycle_requested = false
         @logger.info("[nwc] connecting to #{@url}")
 
         Async::WebSocket::Client.connect(endpoint) do |conn|
@@ -155,6 +156,7 @@ module NwcRuby
 
           @open_cb&.call(self)
           read_loop(conn)
+          @logger.info("[nwc] recycling connection (#{@recycle_interval}s)") if @recycle_requested
         ensure
           heartbeat&.stop
           poll&.stop
@@ -167,6 +169,13 @@ module NwcRuby
         end
       end
 
+      # Heartbeat task: sends RFC 6455 ping every @ping_interval seconds and
+      # requests a recycle once the connection has been open longer than
+      # @recycle_interval. The recycle is signaled via a flag + close rather
+      # than by raising across task boundaries, because an exception raised
+      # inside a child Async task is logged at warn level by Async's console
+      # logger ("Task may have ended with unhandled exception") before the
+      # parent's rescue runs — producing a noisy backtrace on every recycle.
       def start_heartbeat(top, conn, opened_at)
         top.async do
           loop do
@@ -176,10 +185,23 @@ module NwcRuby
 
             sleep @ping_interval
             break if @stop
-
-            raise TransportError, "recycle (#{@recycle_interval}s)" if Async::Clock.now - opened_at > @recycle_interval
+            break if recycle_due?(opened_at) && request_recycle(conn)
           end
         end
+      end
+
+      def recycle_due?(opened_at)
+        Async::Clock.now - opened_at > @recycle_interval
+      end
+
+      def request_recycle(conn)
+        @recycle_requested = true
+        begin
+          conn.close
+        rescue StandardError
+          nil
+        end
+        true
       end
 
       def start_poll(top)
@@ -200,7 +222,21 @@ module NwcRuby
       end
 
       def read_loop(conn)
-        while (message = conn.read)
+        loop do
+          message =
+            begin
+              conn.read
+            rescue StandardError => e
+              # If we asked for the recycle/close ourselves, treat the
+              # resulting read error as a clean EOF rather than propagating
+              # it up into the reconnect-on-error path (which would log a
+              # spurious warning).
+              raise unless @recycle_requested || @stop
+
+              @logger.debug("[nwc] read interrupted by close: #{e.class}")
+              nil
+            end
+          break if message.nil?
           break if @stop
 
           begin
