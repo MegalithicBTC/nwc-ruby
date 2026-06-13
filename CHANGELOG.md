@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documented a gentle `lookup_invoice` backup polling cadence for invoices so
+  apps can recover from missed notifications without getting rate limited by the
+  backing NWC service.
+
 ### Fixed
 
 - Silenced the noisy `Async::Task` warn log ("Task may have ended with

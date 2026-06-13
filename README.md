@@ -254,24 +254,30 @@ record = Invoice.create!(
   next_lookup_at: Time.current + 3.seconds
 )
 
-# In a background job / Solid Queue worker / cron-style task:
-Invoice.where(state: "pending").where("next_lookup_at <= ?", Time.current).find_each do |inv|
-  if inv.expires_at <= Time.current
-    inv.update!(state: "expired", next_lookup_at: nil)
-    next
+# In a continuously running rake task / worker:
+loop do
+  Invoice.where(state: "pending")
+         .where("next_lookup_at <= ?", Time.current)
+         .find_each do |inv|
+    if inv.expires_at <= Time.current
+      inv.update!(state: "expired", next_lookup_at: nil)
+      next
+    end
+
+    response = client.lookup_invoice(payment_hash: inv.payment_hash)
+    settled = response["settled"] || response["paid"] ||
+              response["state"] == "settled" || response["state"] == "SETTLED" ||
+              response["settled_at"]
+
+    if settled
+      inv.update!(state: "paid", paid_at: Time.current, next_lookup_at: nil)
+    else
+      elapsed = Time.current - inv.created_at
+      inv.update!(next_lookup_at: Time.current + next_lookup_delay(elapsed))
+    end
   end
 
-  response = client.lookup_invoice(payment_hash: inv.payment_hash)
-  settled = response["settled"] || response["paid"] ||
-            response["state"] == "settled" || response["state"] == "SETTLED" ||
-            response["settled_at"]
-
-  if settled
-    inv.update!(state: "paid", paid_at: Time.current, next_lookup_at: nil)
-  else
-    elapsed = Time.current - inv.created_at
-    inv.update!(next_lookup_at: Time.current + next_lookup_delay(elapsed))
-  end
+  sleep 2
 end
 ```
 
