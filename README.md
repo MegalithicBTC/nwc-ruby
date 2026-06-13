@@ -224,6 +224,61 @@ to keep middleboxes from idle-closing the socket, reconnects with capped
 exponential backoff on failure, and force-recycles the connection every 5 minutes
 as a belt-and-suspenders check against silently dead TCP streams.
 
+#### Polling as a backup
+
+Notifications should be your primary settlement path, but production checkout
+flows should also run a small `lookup_invoice` poller after creating an invoice.
+Treat it as a backup for missed notifications, relay interruptions, app restarts,
+or wallet services that deliver notifications slowly.
+
+Do not poll every second until the invoice expires. Backing NWC services often
+enforce rate limits, and aggressive polling can get your app throttled right
+when a customer is trying to pay. Start soon after invoice creation, then poll
+less often as the invoice gets older, and stop when it is paid or expired.
+
+One reasonable cadence:
+
+```ruby
+def next_lookup_delay(elapsed)
+  return 3.seconds  if elapsed < 2.minutes
+  return 6.seconds  if elapsed < 5.minutes
+  12.seconds
+end
+
+invoice = client.make_invoice(amount: 10_000, description: "coffee")
+record = Invoice.create!(
+  payment_hash: invoice["payment_hash"],
+  bolt11: invoice["invoice"],
+  state: "pending",
+  expires_at: Time.current + 10.minutes,
+  next_lookup_at: Time.current + 3.seconds
+)
+
+# In a background job / Solid Queue worker / cron-style task:
+Invoice.where(state: "pending").where("next_lookup_at <= ?", Time.current).find_each do |inv|
+  if inv.expires_at <= Time.current
+    inv.update!(state: "expired", next_lookup_at: nil)
+    next
+  end
+
+  response = client.lookup_invoice(payment_hash: inv.payment_hash)
+  settled = response["settled"] || response["paid"] ||
+            response["state"] == "settled" || response["state"] == "SETTLED" ||
+            response["settled_at"]
+
+  if settled
+    inv.update!(state: "paid", paid_at: Time.current, next_lookup_at: nil)
+  else
+    elapsed = Time.current - inv.created_at
+    inv.update!(next_lookup_at: Time.current + next_lookup_delay(elapsed))
+  end
+end
+```
+
+Keep the notification handler and the poller idempotent. Either one might mark
+the invoice paid first, and the other should see an already-paid row and do
+nothing.
+
 #### Resuming after a restart
 
 Persist the `created_at` of the last notification you processed and pass it as
