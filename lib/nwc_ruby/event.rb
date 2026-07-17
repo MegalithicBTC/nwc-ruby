@@ -50,8 +50,20 @@ module NwcRuby
       self
     end
 
+    # True when the id is the SHA-256 of this event's canonical serialization.
+    def valid_id?
+      return false unless @id.is_a?(String)
+
+      @id == OpenSSL::Digest::SHA256.hexdigest(serialize_for_id)
+    end
+
+    # The signature only commits to the id, so the id must be recomputed from
+    # the event body before the signature means anything. Without that check a
+    # relay can graft a genuine (id, sig) pair from one event onto arbitrary
+    # pubkey/created_at/kind/tags/content and still verify.
     def valid_signature?
       return false unless @id && @sig && @pubkey
+      return false unless valid_id?
 
       digest_bytes = Crypto::Keys.hex_to_bytes(@id)
       Crypto::Schnorr.verify(digest_bytes, @sig, @pubkey)

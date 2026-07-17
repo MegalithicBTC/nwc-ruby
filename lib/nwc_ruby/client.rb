@@ -187,8 +187,10 @@ module NwcRuby
 
       conn.on_event do |_sub, event_hash|
         event = Event.from_hash(event_hash)
-        next unless event.valid_signature?
-        next unless event.pubkey == @connection_string.wallet_pubkey
+        next unless authentic?(event)
+        # Notification.parse raises on any other kind, which would tear down
+        # the listener; the relay chooses what it sends us, not the filter.
+        next unless kinds.include?(event.kind)
 
         # Advance the poll watermark so we don't re-fetch old events.
         last_seen_at = event.created_at if event.created_at && event.created_at > last_seen_at
@@ -218,6 +220,33 @@ module NwcRuby
     # -- Internals ------------------------------------------------------------
 
     private
+
+    # Every event arriving from a relay must clear this before it is parsed.
+    # `valid_signature?` recomputes the id, so a passing event is byte-for-byte
+    # what the wallet signed — which is what makes the kind and tag checks
+    # below meaningful.
+    def authentic?(event)
+      event.valid_signature? && event.pubkey == @connection_string.wallet_pubkey
+    end
+
+    # A relay is not trusted to honour the REQ filter it was sent, so the
+    # response is bound to the request here. Without this an older but genuine
+    # response (say, a past "payment succeeded") can be replayed against a new
+    # request.
+    def response_to?(event, request_id)
+      e_tag = event.tags.find { |t| t[0] == 'e' }
+      !e_tag.nil? && e_tag[1] == request_id
+    end
+
+    # Advisory only — the relay decides what it actually sends, so `fetch_info`
+    # re-checks the author and kind on whatever comes back.
+    def info_filter
+      {
+        'authors' => [@connection_string.wallet_pubkey],
+        'kinds' => [NIP47::Methods::KIND_INFO],
+        'limit' => 1
+      }
+    end
 
     # rubocop:disable Metrics/MethodLength
     def call(method, params)
@@ -260,8 +289,9 @@ module NwcRuby
             next unless parsed[0] == 'EVENT' && parsed[1] == sub_id
 
             event = Event.from_hash(parsed[2])
-            next unless event.valid_signature?
-            next unless event.pubkey == @connection_string.wallet_pubkey
+            next unless authentic?(event)
+            next unless event.kind == NIP47::Methods::KIND_RESPONSE
+            next unless response_to?(event, request_event.id)
 
             result = NIP47::Response.parse(event, @connection_string.secret, @connection_string.wallet_pubkey)
             break
@@ -290,11 +320,7 @@ module NwcRuby
       Async do
         Async::WebSocket::Client.connect(endpoint) do |conn|
           sub_id = "info-#{SecureRandom.hex(4)}"
-          conn.write(Protocol::WebSocket::TextMessage.generate(['REQ', sub_id, {
-                                                                 'authors' => [@connection_string.wallet_pubkey],
-                                                                 'kinds' => [NIP47::Methods::KIND_INFO],
-                                                                 'limit' => 1
-                                                               }]))
+          conn.write(Protocol::WebSocket::TextMessage.generate(['REQ', sub_id, info_filter]))
           conn.flush
 
           while (msg = conn.read)
@@ -307,8 +333,12 @@ module NwcRuby
             end
 
             if parsed[0] == 'EVENT' && parsed[1] == sub_id
-              event  = Event.from_hash(parsed[2])
-              result = NIP47::Info.parse(event) if event.valid_signature?
+              event = Event.from_hash(parsed[2])
+              # A rejected event must not end the read: a genuine info event
+              # may still follow, and the deadline above bounds the wait.
+              next unless authentic?(event) && event.kind == NIP47::Methods::KIND_INFO
+
+              result = NIP47::Info.parse(event)
               break
             elsif parsed[0] == 'EOSE' && parsed[1] == sub_id
               break
