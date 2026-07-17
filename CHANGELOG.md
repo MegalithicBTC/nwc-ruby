@@ -7,11 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-07-17
+
+### Security
+
+- **Event ids are now recomputed before the signature is trusted.**
+  `Event#valid_signature?` verified the signature against the `id` supplied by
+  the relay without checking that the `id` actually described the event body.
+  Because a Nostr signature only ever commits to the `id`, nothing bound that
+  `id` to the event it arrived with: a relay could lift a genuine
+  `(id, sig, pubkey)` triple from any real wallet event and re-attach it to
+  arbitrary `content`, `tags`, `kind` or `created_at`, and the result verified.
+  The id is now recomputed from the canonical serialization first, via the new
+  `Event#valid_id?`. Reported by @riccardobl in
+  [#1](https://github.com/MegalithicBTC/nwc-ruby/issues/1).
+
+  The sharpest edge was the kind 13194 info event, whose content and tags are
+  plaintext: stripping its `encryption` tag silently downgraded every
+  subsequent request from NIP-44 v2 to NIP-04, since the spec reads an absent
+  tag as "nip04 only".
+
+- **Responses are now bound to the request that asked for them.** `call` trusted
+  the relay to honour the `#e` REQ filter and never checked the response's `e`
+  tag itself, so a relay could replay an older but genuine response — a past
+  "payment succeeded" answering a fresh `pay_invoice`, for instance.
+
+- **`fetch_info` now verifies the event author.** It previously checked only
+  `valid_signature?` and never compared the pubkey to the wallet's, so a relay
+  could sign an info event with its own key and have it accepted — forcing the
+  encryption downgrade above without needing to tamper with anything.
+
+### Fixed
+
+- The notification listener no longer tears down when a relay delivers an event
+  of an unexpected kind. `Notification.parse` raises `ArgumentError` on a
+  non-notification kind, but only `EncryptionError` was rescued, so a relay
+  echoing a kind 23195 response onto the subscription killed the listener.
+- A rejected info event no longer ends the `fetch_info` read loop, so one junk
+  event cannot deny service while a genuine info event is still inbound.
+- Corrected `source_code_uri` and `changelog_uri` in the gemspec, which pointed
+  at a `main` branch that does not exist — both links 404'd from the RubyGems
+  page. This repo uses `master`; `PUBLISHING.md` has been corrected to match.
+- `PUBLISHING.md` no longer claims releases publish automatically on tag. There
+  is no `release.yml` in this repo — only `ci.yml`, which tests but never
+  publishes — so releases are manual.
+
 ### Added
 
 - Documented a gentle `lookup_invoice` backup polling cadence for invoices so
   apps can recover from missed notifications without getting rate limited by the
   backing NWC service.
+
+## [0.2.3] — 2026-04-23
 
 ### Fixed
 
