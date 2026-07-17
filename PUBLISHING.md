@@ -35,11 +35,11 @@ which will force MFA on every push to this gem.
 ```sh
 cd /path/to/nwc-ruby
 
-git init -b main
+git init -b master
 git add .
 git commit -m "Initial commit: nwc-ruby gem v0.1.0"
 git remote add origin git@github.com:MegalithicBTC/nwc-ruby.git
-git push -u origin main
+git push -u origin master
 ```
 
 Verify CI runs green on GitHub Actions before proceeding.
@@ -127,24 +127,34 @@ git push origin v0.1.0
 Also create a release on GitHub (Releases → Draft a new release → pick the
 tag) and paste in the CHANGELOG entry for that version.
 
-## Subsequent releases (automated via tag)
+## Subsequent releases (manual)
 
-Now that `release.yml` is in place and trusted publishing is configured, every
-release is just:
+> **Note:** this repo currently has no `release.yml` — `.github/workflows/`
+> contains only `ci.yml`, which tests but never publishes. Tagging does **not**
+> push to RubyGems. Until a release workflow and the trusted publisher in step 6
+> of the one-time setup are actually in place, every release is manual, and
+> `gem push` will prompt for an MFA OTP because the gemspec sets
+> `rubygems_mfa_required`.
 
 1. Update `lib/nwc_ruby/version.rb`:
    ```ruby
    VERSION = "0.2.0"
    ```
 2. Add a `## [0.2.0] — YYYY-MM-DD` section to `CHANGELOG.md`.
-3. Commit, merge to `main`, wait for CI green.
-4. Tag and push:
+3. Commit to `master`, push, wait for CI green.
+4. Tag and push the tag:
    ```sh
    git tag -a v0.2.0 -m "Release v0.2.0"
    git push origin v0.2.0
    ```
-5. The `release.yml` workflow builds and pushes to RubyGems via OIDC. Watch
-   <https://github.com/MegalithicBTC/nwc-ruby/actions>.
+5. Build and push the gem (prompts for your MFA OTP):
+   ```sh
+   gem signin          # only if ~/.gem/credentials is absent
+   gem build nwc-ruby.gemspec
+   gem push nwc-ruby-0.2.0.gem
+   ```
+6. Verify at <https://rubygems.org/gems/nwc-ruby> and paste the CHANGELOG entry
+   into a GitHub release for the tag.
 
 ## Version numbering
 
