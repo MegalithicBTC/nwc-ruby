@@ -522,6 +522,12 @@ Constructor:
 | `Client.from_uri(uri)`          | `Client` — parses the `nostr+walletconnect://` URI  |
 | `Client.new(connection_string)` | `Client` — if you already have a `ConnectionString` |
 
+Both accept `request_timeout:` (seconds, default 30, covering the info fetch,
+connect and response wait) and `connect_retries:` (default 2). Failures before
+the request is written to the relay are retried across every `relay` in the
+connection string, with 0.25 s / 1 s backoff, inside `request_timeout`.
+Nothing is ever retried after the request is written.
+
 Introspection:
 
 | Method            | Returns                                  |
@@ -565,18 +571,41 @@ Listener:
 
 ### Errors
 
-All gem errors inherit from `NwcRuby::Error`:
+All gem errors inherit from `NwcRuby::Error`. Public `Client` methods never
+let a raw `SocketError` / `Errno::*` / `OpenSSL` / `Async` exception escape;
+the original is kept as `#cause`.
 
 - `InvalidConnectionStringError` — the URI couldn't be parsed.
 - `EncryptionError` — bad MAC / bad padding / unknown version byte / bad key.
 - `InvalidSignatureError` — an event's signature did not verify.
-- `TransportError` — the WebSocket couldn't connect or died unrecoverably.
-- `TimeoutError` — no response within the timeout window.
+- `TransportError` — the connection failed **after** the request was written
+  to the relay. The wallet may have acted on it: reconcile with
+  `lookup_invoice` / `list_transactions` rather than retrying a payment.
+  - `NotSentError` — the request never left this process (DNS, connect, TLS,
+    websocket upgrade, info fetch). Always safe to retry.
+    - `InfoUnavailableError` — the relay holds no kind 13194 info event for
+      this wallet; usually a wrong relay or pubkey.
+- `TimeoutError` — the request was sent but no response arrived in time. The
+  wallet may have acted on it.
 - `UnsupportedMethodError` — wallet service doesn't advertise this method.
+  A configuration problem; retrying won't help.
 - `WalletServiceError` — the wallet returned an error envelope. Check `#code`
   for `RATE_LIMITED`, `NOT_IMPLEMENTED`, `INSUFFICIENT_BALANCE`,
   `QUOTA_EXCEEDED`, `RESTRICTED`, `UNAUTHORIZED`, `INTERNAL`,
   `UNSUPPORTED_ENCRYPTION`, `PAYMENT_FAILED`, `NOT_FOUND`, or `OTHER`.
+
+Every error also answers `#sent?`: `false` means the request provably never
+reached the wallet; `true` or `nil` mean it may have.
+
+```ruby
+begin
+  client.pay_invoice(invoice: bolt11)
+rescue NwcRuby::NotSentError
+  # Nothing reached the wallet. Safe to retry later.
+rescue NwcRuby::TransportError, NwcRuby::TimeoutError
+  # Ambiguous: the payment may have gone out. Reconcile before retrying.
+end
+```
 
 ---
 

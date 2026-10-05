@@ -303,7 +303,7 @@ module NwcRuby
       rescue TimeoutError => e
         fail!("#{label}: #{e.message}")
         fail!('  → The wallet service accepted the request but never responded. The service may be down or overloaded.')
-      rescue UnsupportedMethodError => e
+      rescue UnsupportedMethodError, TransportError => e
         fail!("#{label}: #{e.message}")
       rescue EncryptionError => e
         fail!("#{label}: decryption failed — #{e.message}")

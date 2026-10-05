@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'async'
+require 'async/clock'
 require 'async/http/endpoint'
 require 'async/websocket/client'
 
@@ -19,7 +20,10 @@ module NwcRuby
   #     puts "Got #{notification.amount_msats} msats"
   #   end
   class Client
-    DEFAULT_TIMEOUT = 30
+    DEFAULT_TIMEOUT         = 30
+    DEFAULT_CONNECT_RETRIES = 2
+    # Pause before each retry round; the last value repeats.
+    CONNECT_BACKOFF = [0.25, 1.0].freeze
 
     attr_reader :connection_string, :logger
 
@@ -27,10 +31,16 @@ module NwcRuby
       new(ConnectionString.parse(uri_string), **)
     end
 
-    def initialize(connection_string, logger: nil, request_timeout: DEFAULT_TIMEOUT)
+    # @param request_timeout [Numeric] overall budget per public call, covering
+    #   the info fetch, connecting, and waiting for the wallet's response.
+    # @param connect_retries [Integer] extra rounds through the relay list when
+    #   a request fails before it is sent. Never applies after sending.
+    def initialize(connection_string, logger: nil, request_timeout: DEFAULT_TIMEOUT,
+                   connect_retries: DEFAULT_CONNECT_RETRIES)
       @connection_string = connection_string
       @logger            = logger || default_logger
       @request_timeout   = request_timeout
+      @connect_retries   = connect_retries
       @info              = nil
     end
 
@@ -38,10 +48,11 @@ module NwcRuby
 
     # Fetch and cache the kind 13194 info event. This tells us which methods
     # the wallet service supports and which encryption schemes it accepts.
+    # Raises NotSentError (never anything lower-level) if it can't be fetched.
     def info(refresh: false)
       return @info if @info && !refresh
 
-      @info = fetch_info
+      @info = fetch_info(new_deadline)
     end
 
     def capabilities
@@ -248,124 +259,203 @@ module NwcRuby
       }
     end
 
-    # rubocop:disable Metrics/MethodLength
-    def call(method, params)
-      ensure_supports!(method)
-      encryption = info.preferred_encryption
-
-      deadline = Time.now + @request_timeout
-      result   = nil
-
-      Async do
-        endpoint = Async::HTTP::Endpoint.parse(@connection_string.relays.first, alpn_protocols: ['http/1.1'])
-        Async::WebSocket::Client.connect(endpoint) do |conn|
-          request_event = NIP47::Request.build(
-            method: method,
-            params: params,
-            client_privkey: @connection_string.secret,
-            wallet_pubkey: @connection_string.wallet_pubkey,
-            encryption: encryption
-          )
-
-          sub_id = "rsp-#{SecureRandom.hex(4)}"
-          conn.write(Protocol::WebSocket::TextMessage.generate(['REQ', sub_id, {
-                                                                 'authors' => [@connection_string.wallet_pubkey],
-                                                                 'kinds' => [NIP47::Methods::KIND_RESPONSE],
-                                                                 '#e' => [request_event.id],
-                                                                 '#p' => [@connection_string.client_pubkey]
-                                                               }]))
-          conn.write(Protocol::WebSocket::TextMessage.generate(['EVENT', request_event.to_h]))
-          conn.flush
-
-          while (msg = conn.read)
-            break if Time.now > deadline
-
-            parsed = begin
-              JSON.parse(msg.buffer)
-            rescue JSON::ParserError
-              next
-            end
-
-            next unless parsed[0] == 'EVENT' && parsed[1] == sub_id
-
-            event = Event.from_hash(parsed[2])
-            next unless authentic?(event)
-            next unless event.kind == NIP47::Methods::KIND_RESPONSE
-            next unless response_to?(event, request_event.id)
-
-            result = NIP47::Response.parse(event, @connection_string.secret, @connection_string.wallet_pubkey)
-            break
-          end
-        ensure
-          begin
-            conn&.close
-          rescue StandardError
-            nil
-          end
-        end
-      end.wait
-
-      raise TimeoutError, "no response to #{method} within #{@request_timeout}s" if result.nil?
-      raise WalletServiceError.new(result.error_code || 'UNKNOWN', result.error_message || '') unless result.success?
-
-      result.result
+    def response_filter(request_id)
+      {
+        'authors' => [@connection_string.wallet_pubkey],
+        'kinds' => [NIP47::Methods::KIND_RESPONSE],
+        '#e' => [request_id],
+        '#p' => [@connection_string.client_pubkey]
+      }
     end
-    # rubocop:enable Metrics/MethodLength
 
-    def fetch_info
-      endpoint  = Async::HTTP::Endpoint.parse(@connection_string.relays.first, alpn_protocols: ['http/1.1'])
-      deadline  = Time.now + @request_timeout
-      result    = nil
+    # Every request has two phases. Phase 1 (info fetch, DNS, connect, TLS,
+    # upgrade, REQ write) cannot have reached the wallet, so its failures raise
+    # NotSentError and are retried. Phase 2 starts at the EVENT write: the
+    # wallet may have acted, so failures there are ambiguous and never retried.
+    def call(method, params)
+      deadline = new_deadline
+      ensure_supports!(method, deadline)
 
-      Async do
-        Async::WebSocket::Client.connect(endpoint) do |conn|
-          sub_id = "info-#{SecureRandom.hex(4)}"
-          conn.write(Protocol::WebSocket::TextMessage.generate(['REQ', sub_id, info_filter]))
-          conn.flush
+      # Built once so every relay and retry carries the same event id.
+      request_event = NIP47::Request.build(
+        method: method,
+        params: params,
+        client_privkey: @connection_string.secret,
+        wallet_pubkey: @connection_string.wallet_pubkey,
+        encryption: @info.preferred_encryption
+      )
 
-          while (msg = conn.read)
-            break if Time.now > deadline
-
-            parsed = begin
-              JSON.parse(msg.buffer)
-            rescue JSON::ParserError
-              next
-            end
-
-            if parsed[0] == 'EVENT' && parsed[1] == sub_id
-              event = Event.from_hash(parsed[2])
-              # A rejected event must not end the read: a genuine info event
-              # may still follow, and the deadline above bounds the wait.
-              next unless authentic?(event) && event.kind == NIP47::Methods::KIND_INFO
-
-              result = NIP47::Info.parse(event)
-              break
-            elsif parsed[0] == 'EOSE' && parsed[1] == sub_id
-              break
-            end
-          end
-        ensure
-          begin
-            conn&.close
-          rescue StandardError
-            nil
-          end
-        end
-      end.wait
-
-      if result.nil?
-        raise TransportError,
-              "wallet service published no info event (kind 13194) on #{@connection_string.relays.first}"
+      response = with_relays(deadline) { |url| send_request(url, deadline, method, request_event) }
+      unless response.success?
+        raise WalletServiceError.new(response.error_code || 'UNKNOWN', response.error_message || '')
       end
 
-      result
+      response.result
     end
 
-    def ensure_supports!(method)
-      return if info.supports?(method)
+    def send_request(url, deadline, method, request_event)
+      sent = false
+      response, failure = websocket_session(url, deadline) do |conn|
+        sub_id = "rsp-#{SecureRandom.hex(4)}"
+        write_frame(conn, ['REQ', sub_id, response_filter(request_event.id)])
+        # Set before the write: a write that fails part-way may still deliver.
+        sent = true
+        write_frame(conn, ['EVENT', request_event.to_h])
+        read_response(conn, sub_id, request_event.id)
+      end
+      return response if response
+
+      raise_not_sent(url, failure) unless sent
+      raise failure if failure.is_a?(Error)
+      if failure.is_a?(Async::TimeoutError)
+        raise TimeoutError, "no response to #{method} within #{@request_timeout}s", cause: failure
+      end
+
+      raise TransportError,
+            "connection to relay #{relay_host(url)} failed after #{method} was sent " \
+            "(#{failure.class}: #{failure.message})",
+            cause: failure
+    end
+
+    def read_response(conn, sub_id, request_id)
+      while (msg = conn.read)
+        parsed = parse_frame(msg)
+        # Still ambiguous: the relay is untrusted and may have forwarded it anyway.
+        if parsed && parsed[0] == 'OK' && parsed[1] == request_id && parsed[2] == false
+          raise TransportError, "relay rejected the request: #{parsed[3].to_s[0, 200]}"
+        end
+
+        event = relay_event(parsed, sub_id)
+        next unless event && event.kind == NIP47::Methods::KIND_RESPONSE && response_to?(event, request_id)
+
+        return NIP47::Response.parse(event, @connection_string.secret, @connection_string.wallet_pubkey)
+      end
+      raise TransportError, 'relay closed the connection before the wallet responded'
+    end
+
+    # Entirely phase 1: nothing has been sent to the wallet yet.
+    def fetch_info(deadline)
+      with_relays(deadline) { |url| fetch_info_from(url, deadline) }
+    end
+
+    def fetch_info_from(url, deadline)
+      info, failure = websocket_session(url, deadline) do |conn|
+        sub_id = "info-#{SecureRandom.hex(4)}"
+        write_frame(conn, ['REQ', sub_id, info_filter])
+        read_info(conn, sub_id)
+      end
+      return info if info
+
+      raise_not_sent(url, failure) if failure
+      raise InfoUnavailableError,
+            "wallet service published no info event (kind 13194) on relay #{relay_host(url)}"
+    end
+
+    def read_info(conn, sub_id)
+      while (msg = conn.read)
+        parsed = parse_frame(msg)
+        return nil if parsed && parsed[0] == 'EOSE' && parsed[1] == sub_id
+
+        # A rejected event must not end the read: a genuine info event may
+        # still follow, and the deadline bounds the wait.
+        event = relay_event(parsed, sub_id)
+        return NIP47::Info.parse(event) if event&.kind == NIP47::Methods::KIND_INFO
+      end
+      nil
+    end
+
+    def ensure_supports!(method, deadline)
+      @info ||= fetch_info(deadline)
+      return if @info.supports?(method)
 
       raise UnsupportedMethodError,
-            "wallet service does not advertise `#{method}`. Supported: #{info.methods.join(', ')}"
+            "wallet service does not advertise `#{method}`. Supported: #{@info.methods.join(', ')}"
+    end
+
+    # Tries each relay in turn, then up to @connect_retries more rounds with
+    # backoff, all inside `deadline`. Only NotSentError is retried.
+    def with_relays(deadline)
+      last_failure = nil
+      (@connect_retries + 1).times do |round|
+        if round.positive?
+          pause = CONNECT_BACKOFF[round - 1] || CONNECT_BACKOFF.last
+          break if Async::Clock.now + pause >= deadline
+
+          sleep pause
+        end
+
+        @connection_string.relays.each do |url|
+          break if Async::Clock.now >= deadline
+
+          return yield(url)
+        rescue NotSentError => e
+          last_failure = e
+          @logger.warn("[nwc] #{e.message}")
+        end
+      end
+      raise last_failure if last_failure
+
+      raise NotSentError, "not sent: #{@request_timeout}s deadline passed before a relay could be tried"
+    end
+
+    # One websocket session bounded by `deadline`. Exceptions are rescued
+    # inside the task and returned so Async never logs them as unhandled.
+    # @return [Array(Object, Exception)] the block's value and any failure
+    def websocket_session(url, deadline)
+      value   = nil
+      failure = nil
+      Sync do |task|
+        task.with_timeout(remaining(deadline)) do
+          endpoint = Async::HTTP::Endpoint.parse(url, alpn_protocols: ['http/1.1'])
+          Async::WebSocket::Client.connect(endpoint) { |conn| value = yield(conn) }
+        end
+      rescue StandardError => e
+        failure = e
+      end
+      [value, failure]
+    end
+
+    def raise_not_sent(url, failure)
+      raise failure if failure.is_a?(NotSentError)
+
+      reason = failure.is_a?(Async::TimeoutError) ? 'timed out' : "#{failure.class}: #{failure.message}"
+      raise NotSentError, "not sent: relay #{relay_host(url)} failed before the request was written (#{reason})",
+            cause: failure
+    end
+
+    # An authentic wallet event delivered on `sub_id`, or nil.
+    def relay_event(parsed, sub_id)
+      return unless parsed && parsed[0] == 'EVENT' && parsed[1] == sub_id && parsed[2].is_a?(Hash)
+
+      event = Event.from_hash(parsed[2])
+      event if authentic?(event)
+    end
+
+    def parse_frame(msg)
+      parsed = JSON.parse(msg.buffer)
+      parsed if parsed.is_a?(Array)
+    rescue JSON::ParserError
+      nil
+    end
+
+    def write_frame(conn, message)
+      conn.write(Protocol::WebSocket::TextMessage.generate(message))
+      conn.flush
+    end
+
+    # Host only: relay URLs can carry auth tokens in the path or query.
+    def relay_host(url)
+      URI.parse(url).host || 'unknown'
+    rescue URI::InvalidURIError
+      'unparseable relay URL'
+    end
+
+    def new_deadline
+      Async::Clock.now + @request_timeout
+    end
+
+    def remaining(deadline)
+      [deadline - Async::Clock.now, 0].max
     end
 
     def default_logger

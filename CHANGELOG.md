@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-05
+
+### Changed
+
+- **Failures now say whether the request reached the wallet.** Anything that
+  fails before the request EVENT is written to the relay — DNS, TCP connect,
+  TLS, the websocket upgrade, the info fetch — raises the new
+  `NwcRuby::NotSentError` (a `TransportError` subclass, so existing rescues
+  still match), with the original exception as `#cause` and only the relay
+  host in the message. Failures after the write stay ambiguous:
+  `TransportError` or `TimeoutError`. Previously a DNS failure surfaced as a
+  raw `Socket::ResolutionError`, so callers could not tell "never sent, safe
+  to retry" from "maybe paid".
+- Public `Client` methods no longer leak raw `SocketError` / `Errno::*` /
+  `OpenSSL::SSL::SSLError` / `Async::TimeoutError` / `Protocol::WebSocket`
+  exceptions; everything is an `NwcRuby::Error`.
+- A relay closing the connection after the request was sent now raises
+  `TransportError` instead of a misleading `TimeoutError`.
+- A relay answering the request with `["OK", id, false, reason]` now raises
+  `TransportError` immediately instead of waiting out `request_timeout`. It is
+  still treated as maybe-sent, since the relay is untrusted.
+- "No info event" is now `InfoUnavailableError` (a `NotSentError`) instead of a
+  plain `TransportError`.
+- `request_timeout` now bounds the whole call, including connecting and the
+  info fetch. Before, a relay that went silent could block a request
+  indefinitely because the deadline was only checked when a message arrived.
+- Errors are classified inside the Async task, so Async no longer logs
+  "Task may have ended with unhandled exception" for request failures.
+
+### Added
+
+- `connect_retries:` (default 2): pre-send failures are retried with 0.25 s /
+  1 s backoff inside `request_timeout`. Nothing is retried after the request is
+  written.
+- Requests and info fetches fall through to the next `relay` in the connection
+  string on a pre-send failure (previously only the first relay was used).
+- `NwcRuby::Error#sent?` — `false` for `NotSentError` and
+  `UnsupportedMethodError`, `true` for `TransportError`, `TimeoutError` and
+  `WalletServiceError`, `nil` where it doesn't apply.
+
 ## [0.2.4] — 2026-07-17
 
 ### Security

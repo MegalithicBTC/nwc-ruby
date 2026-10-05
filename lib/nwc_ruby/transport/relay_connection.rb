@@ -120,7 +120,7 @@ module NwcRuby
       # Send raw client->relay message (e.g. REQ, EVENT, CLOSE). Safe to call
       # from within on_open / on_event callbacks.
       def send_message(message)
-        raise TransportError, 'not connected' unless @conn
+        raise NotSentError, 'not connected' unless @conn
 
         @conn.write(Protocol::WebSocket::TextMessage.generate(message))
         @conn.flush
