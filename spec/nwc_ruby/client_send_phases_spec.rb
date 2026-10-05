@@ -11,6 +11,8 @@ RSpec.describe NwcRuby::Client, 'send phases' do
   let(:client_priv) { NwcRuby::Crypto::Keys.generate_private_key }
   let(:client_pub)  { NwcRuby::Crypto::Keys.public_key_from_private(client_priv) }
   let(:invoice)     { 'lnbc10n1fake' }
+  # Socket::ResolutionError only exists on Ruby 3.3+.
+  let(:dns_error) { defined?(Socket::ResolutionError) ? Socket::ResolutionError : SocketError }
 
   let(:full_info) do
     NwcRuby::NIP47::Info.new(methods: NwcRuby::NIP47::Methods::ALL, encryption_schemes: ['nip44_v2'],
@@ -58,7 +60,7 @@ RSpec.describe NwcRuby::Client, 'send phases' do
       client = client_for('wss://nwc-ruby-test.invalid/v1?token=hunter2')
 
       expect { client.info }.to raise_error(NwcRuby::NotSentError) { |e|
-        expect(e.cause).to be_a(Socket::ResolutionError)
+        expect(e.cause).to be_a(dns_error)
         expect(e.message).to include('nwc-ruby-test.invalid')
         expect(e.message).not_to include('hunter2')
         expect(e.message).not_to include(client_priv)
@@ -234,7 +236,7 @@ RSpec.describe NwcRuby::Client, 'send phases' do
         calls = 0
         allow(Async::WebSocket::Client).to receive(:connect).and_wrap_original do |original, *args, **kw, &blk|
           calls += 1
-          raise Socket::ResolutionError, 'getaddrinfo: Name or service not known' if calls == 1
+          raise dns_error, 'getaddrinfo: Name or service not known' if calls == 1
 
           original.call(*args, **kw, &blk)
         end
@@ -273,7 +275,7 @@ RSpec.describe NwcRuby::Client, 'send phases' do
   describe 'public API' do
     let(:low_level_errors) do
       [
-        Socket::ResolutionError.new('getaddrinfo: Name or service not known'),
+        dns_error.new('getaddrinfo: Name or service not known'),
         Errno::ECONNREFUSED.new, Errno::ECONNRESET.new, Errno::EHOSTUNREACH.new, Errno::ETIMEDOUT.new,
         OpenSSL::SSL::SSLError.new('handshake failure'), Async::TimeoutError.new, EOFError.new, IOError.new,
         Protocol::WebSocket::ProtocolError.new('bad upgrade')

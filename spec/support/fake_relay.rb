@@ -117,7 +117,7 @@ class FakeRelay
   end
 
   def push(conn, message)
-    conn.write(Protocol::WebSocket::TextMessage.generate(message))
+    conn.write(Protocol::WebSocket::TextMessage.new(JSON.generate(message)))
     conn.flush
   end
 

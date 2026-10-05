@@ -439,7 +439,8 @@ module NwcRuby
     end
 
     def write_frame(conn, message)
-      conn.write(Protocol::WebSocket::TextMessage.generate(message))
+      # TextMessage.generate passes symbolize_names to JSON.generate, which json 3.x rejects.
+      conn.write(Protocol::WebSocket::TextMessage.new(JSON.generate(message)))
       conn.flush
     end
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-05
+
+### Fixed
+
+- **Every request failed with json 3.x.** Outgoing frames were built with
+  `Protocol::WebSocket::TextMessage.generate`, which passes
+  `symbolize_names: true` to `JSON.generate`; json 3.x rejects that keyword
+  with `ArgumentError`. In 0.3.0 this surfaced as `NotSentError` on every
+  call ("failed before the request was written (ArgumentError: unknown
+  keyword: symbolize_names)"), and `RelayConnection` could not subscribe.
+  Frames are now serialized with `JSON.generate` directly.
+- Specs no longer reference `Socket::ResolutionError`, which only exists on
+  Ruby 3.3+, so the suite passes on Ruby 3.2.
+
 ## [0.3.0] — 2026-10-05
 
 ### Changed
