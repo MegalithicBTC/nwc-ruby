@@ -528,6 +528,11 @@ the request is written to the relay are retried across every `relay` in the
 connection string, with 0.25 s / 1 s backoff, inside `request_timeout`.
 Nothing is ever retried after the request is written.
 
+Build one `Client` per connection string and reuse it. It caches the wallet's
+info event and the connection's encryption key, so only its first call pays
+for the ECDH (tens of milliseconds in pure Ruby); a `Client` built per request
+pays it on every call.
+
 Introspection:
 
 | Method            | Returns                                  |

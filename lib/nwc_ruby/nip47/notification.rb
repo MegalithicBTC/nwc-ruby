@@ -32,12 +32,15 @@ module NwcRuby
         @type == 'payment_sent'
       end
 
-      def self.parse(event, client_privkey, wallet_pubkey)
+      # @param conversation [Crypto::Conversation, nil] cached keys for this
+      #   client/wallet pair; derived from the two keys when nil
+      def self.parse(event, client_privkey, wallet_pubkey, conversation: nil)
+        conversation ||= Crypto::Conversation.new(client_privkey, wallet_pubkey)
         plaintext = case event.kind
                     when Methods::KIND_NOTIFICATION_NIP44
-                      NIP44::Cipher.decrypt(event.content, client_privkey, wallet_pubkey)
+                      NIP44::Cipher.decrypt_with(event.content, conversation)
                     when Methods::KIND_NOTIFICATION_NIP04
-                      NIP04::Cipher.decrypt(event.content, client_privkey, wallet_pubkey)
+                      NIP04::Cipher.decrypt_with(event.content, conversation)
                     else
                       raise ArgumentError, "not a notification kind: #{event.kind}"
                     end

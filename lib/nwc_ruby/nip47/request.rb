@@ -13,12 +13,16 @@ module NwcRuby
       # @param wallet_pubkey [String] hex
       # @param encryption [Symbol] :nip44_v2 or :nip04
       # @param expiration [Integer, nil] optional unix timestamp
+      # @param conversation [Crypto::Conversation, nil] cached keys for this
+      #   client/wallet pair; derived from the two keys above when nil
       # @return [Event]
-      def build(method:, params:, client_privkey:, wallet_pubkey:, encryption: :nip44_v2, expiration: nil)
+      def build(method:, params:, client_privkey:, wallet_pubkey:, encryption: :nip44_v2, expiration: nil,
+                conversation: nil)
+        conversation ||= Crypto::Conversation.new(client_privkey, wallet_pubkey)
         payload = JSON.generate({ 'method' => method, 'params' => params })
         ciphertext = case encryption
-                     when :nip44_v2 then NIP44::Cipher.encrypt(payload, client_privkey, wallet_pubkey)
-                     when :nip04    then NIP04::Cipher.encrypt(payload, client_privkey, wallet_pubkey)
+                     when :nip44_v2 then NIP44::Cipher.encrypt_with(payload, conversation)
+                     when :nip04    then NIP04::Cipher.encrypt_with(payload, conversation)
                      else raise ArgumentError, "unknown encryption: #{encryption}"
                      end
 

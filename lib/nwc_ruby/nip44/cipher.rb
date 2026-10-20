@@ -37,12 +37,19 @@ module NwcRuby
       # @param nonce [String, nil] optional 32-byte nonce (for tests); random if nil
       # @return [String] base64 payload
       def encrypt(plaintext, privkey_hex, pubkey_hex, nonce: nil)
+        encrypt_with(plaintext, Crypto::Conversation.new(privkey_hex, pubkey_hex), nonce: nonce)
+      end
+
+      # `encrypt`, reusing the conversation's cached key instead of redoing ECDH.
+      #
+      # @param conversation [Crypto::Conversation]
+      def encrypt_with(plaintext, conversation, nonce: nil)
         pt_bytes = plaintext.to_s.dup.force_encoding('UTF-8').b
         if pt_bytes.bytesize < MIN_PLAINTEXT || pt_bytes.bytesize > MAX_PLAINTEXT
           raise EncryptionError, 'plaintext length must be 1..65535 bytes'
         end
 
-        conversation_key = derive_conversation_key(privkey_hex, pubkey_hex)
+        conversation_key = conversation.nip44_key
         nonce ||= SecureRandom.bytes(32)
         raise EncryptionError, 'nonce must be 32 bytes' unless nonce.bytesize == 32
 
@@ -56,7 +63,16 @@ module NwcRuby
 
       # @param payload [String] base64 NIP-44 payload
       # @return [String] UTF-8 plaintext
-      def decrypt(payload, privkey_hex, pubkey_hex) # rubocop:disable Metrics/AbcSize
+      def decrypt(payload, privkey_hex, pubkey_hex)
+        decrypt_with(payload, Crypto::Conversation.new(privkey_hex, pubkey_hex))
+      end
+
+      # `decrypt`, reusing the conversation's cached key instead of redoing
+      # ECDH. The payload is fully checked before the key is touched, so a
+      # malformed one is rejected without paying for ECDH.
+      #
+      # @param conversation [Crypto::Conversation]
+      def decrypt_with(payload, conversation) # rubocop:disable Metrics/AbcSize
         raise EncryptionError, 'payload is nil or empty' if payload.nil? || payload.empty?
         raise EncryptionError, "payload starts with '#' (not encrypted)" if payload.start_with?('#')
 
@@ -77,8 +93,7 @@ module NwcRuby
         mac        = raw.byteslice(raw.bytesize - 32, 32)
         ciphertext = raw.byteslice(33, raw.bytesize - 33 - 32)
 
-        conversation_key = derive_conversation_key(privkey_hex, pubkey_hex)
-        chacha_key, chacha_nonce, hmac_key = derive_message_keys(conversation_key, nonce)
+        chacha_key, chacha_nonce, hmac_key = derive_message_keys(conversation.nip44_key, nonce)
 
         expected_mac = OpenSSL::HMAC.digest('SHA256', hmac_key, nonce + ciphertext)
         raise EncryptionError, 'NIP-44 MAC verification failed' unless secure_compare(mac, expected_mac)
@@ -90,8 +105,7 @@ module NwcRuby
       # --- Internals ------------------------------------------------------
 
       def derive_conversation_key(privkey_hex, pubkey_hex)
-        shared = Crypto::ECDH.shared_x(privkey_hex, pubkey_hex)
-        hkdf_extract(SALT.b, shared)
+        Crypto::Conversation.new(privkey_hex, pubkey_hex).nip44_key
       end
 
       def derive_message_keys(conversation_key, nonce)

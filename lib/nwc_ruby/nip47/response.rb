@@ -29,13 +29,16 @@ module NwcRuby
       # @param event [Event] the kind 23195 event (already signature-verified)
       # @param client_privkey [String] hex
       # @param wallet_pubkey [String] hex
+      # @param conversation [Crypto::Conversation, nil] cached keys for this
+      #   client/wallet pair; derived from the two keys above when nil
       # @return [Response]
-      def self.parse(event, client_privkey, wallet_pubkey)
+      def self.parse(event, client_privkey, wallet_pubkey, conversation: nil)
         # Tags: ["p", client_pubkey], ["e", request_event_id]
         e_tag = event.tags.find { |t| t[0] == 'e' }
         request_id = e_tag && e_tag[1]
 
-        plaintext = decrypt(event.content, client_privkey, wallet_pubkey)
+        conversation ||= Crypto::Conversation.new(client_privkey, wallet_pubkey)
+        plaintext = decrypt_with(event.content, conversation)
         data = JSON.parse(plaintext)
 
         new(
@@ -47,11 +50,17 @@ module NwcRuby
         )
       end
 
-      # Try NIP-44 v2 first; fall back to NIP-04 if the version byte is wrong.
       def self.decrypt(content, client_privkey, wallet_pubkey)
-        NIP44::Cipher.decrypt(content, client_privkey, wallet_pubkey)
+        decrypt_with(content, Crypto::Conversation.new(client_privkey, wallet_pubkey))
+      end
+
+      # Try NIP-44 v2 first; fall back to NIP-04 if the version byte is wrong.
+      # Both attempts share the conversation, so the fallback reuses any ECDH
+      # the NIP-44 attempt already ran.
+      def self.decrypt_with(content, conversation)
+        NIP44::Cipher.decrypt_with(content, conversation)
       rescue EncryptionError
-        NIP04::Cipher.decrypt(content, client_privkey, wallet_pubkey)
+        NIP04::Cipher.decrypt_with(content, conversation)
       end
     end
   end

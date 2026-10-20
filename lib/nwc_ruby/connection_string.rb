@@ -53,6 +53,13 @@ module NwcRuby
       @client_pubkey ||= Crypto::Keys.public_key_from_private(@secret)
     end
 
+    # Encryption keys for this client/wallet pair. Both inputs are fixed at
+    # parse time, so the ECDH behind them runs once per connection string
+    # rather than on every request, response and notification.
+    def conversation
+      @conversation ||= Crypto::Conversation.new(@secret, @wallet_pubkey)
+    end
+
     def to_s
       params = { 'relay' => @relays, 'secret' => [@secret] }
       params['lud16'] = [@lud16] if @lud16

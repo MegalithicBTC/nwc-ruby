@@ -207,7 +207,8 @@ module NwcRuby
         last_seen_at = event.created_at if event.created_at && event.created_at > last_seen_at
 
         begin
-          notification = NIP47::Notification.parse(event, @connection_string.secret, @connection_string.wallet_pubkey)
+          notification = NIP47::Notification.parse(event, @connection_string.secret, @connection_string.wallet_pubkey,
+                                                   conversation: @connection_string.conversation)
         rescue EncryptionError => e
           @logger.warn("[nwc] could not decrypt notification: #{e.message}")
           next
@@ -282,7 +283,8 @@ module NwcRuby
         params: params,
         client_privkey: @connection_string.secret,
         wallet_pubkey: @connection_string.wallet_pubkey,
-        encryption: @info.preferred_encryption
+        encryption: @info.preferred_encryption,
+        conversation: @connection_string.conversation
       )
 
       response = with_relays(deadline) { |url| send_request(url, deadline, method, request_event) }
@@ -328,7 +330,8 @@ module NwcRuby
         event = relay_event(parsed, sub_id)
         next unless event && event.kind == NIP47::Methods::KIND_RESPONSE && response_to?(event, request_id)
 
-        return NIP47::Response.parse(event, @connection_string.secret, @connection_string.wallet_pubkey)
+        return NIP47::Response.parse(event, @connection_string.secret, @connection_string.wallet_pubkey,
+                                     conversation: @connection_string.conversation)
       end
       raise TransportError, 'relay closed the connection before the wallet responded'
     end

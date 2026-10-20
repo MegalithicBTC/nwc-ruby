@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-20
+
+### Changed
+
+- **Each connection now derives its encryption key once, not on every
+  message.** NIP-04 and NIP-44 v2 both start from an ECDH that this gem runs
+  as pure-Ruby scalar multiplication: about 33 ms on an Apple-silicon laptop,
+  more on a typical server vCPU. Every request ran it twice (encrypting the
+  request, decrypting the response) and every notification once. The result
+  depends only on the client secret and the wallet pubkey, both fixed when the
+  connection string is parsed, so `ConnectionString#conversation` now computes
+  it on first use and keeps it. A `Client` reused across calls pays for ECDH
+  once in its lifetime. Nonces and IVs are still drawn fresh for every
+  message, and the wire format is unchanged.
+- A response that fails NIP-44 decryption and falls back to NIP-04 reuses the
+  same ECDH instead of running it a second time.
+
+### Added
+
+- `NwcRuby::Crypto::Conversation`: the NIP-04 and NIP-44 v2 keys for one
+  (private key, public key) pair, derived lazily and cached. A bad key raises
+  at first use, as before, and a failure is not cached.
+- `NIP44::Cipher.encrypt_with` / `decrypt_with` and
+  `NIP04::Cipher.encrypt_with` / `decrypt_with`, which take a `Conversation`
+  in place of the two hex keys. The existing `encrypt` / `decrypt` signatures
+  are unchanged.
+- An optional `conversation:` keyword on `NIP47::Request.build`,
+  `NIP47::Response.parse` and `NIP47::Notification.parse`.
+- Specs against paulmillr's `get_conversation_key` and `encrypt_decrypt`
+  NIP-44 vectors.
+
 ## [0.3.1] — 2026-10-05
 
 ### Fixed
