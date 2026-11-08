@@ -41,7 +41,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'async-http', '~> 0.70'
   spec.add_dependency 'async-websocket', '~> 0.26'
   spec.add_dependency 'base64', '~> 0.2'
-  spec.add_dependency 'ecdsa', '~> 1.2'
   spec.add_dependency 'logger', '~> 1.6'
   spec.add_dependency 'rbsecp256k1', '~> 6.0'
 

@@ -166,6 +166,15 @@ If you see `LoadError: cannot load such file -- secp256k1` at runtime, the
 native extension wasn't compiled. Install the build dependencies above and
 run `gem pristine rbsecp256k1` (or re-run `bundle install`) to rebuild it.
 
+NIP-04 and NIP-44 encryption run their ECDH through Ruby's built-in `openssl`,
+which needs an OpenSSL that allows secp256k1. Standard builds do. OpenSSL in
+FIPS mode does not, and then every encrypt and decrypt raises
+`NwcRuby::CryptoUnavailableError`. To check at boot:
+
+```ruby
+NwcRuby::Crypto::ECDH.available? # => true
+```
+
 ---
 
 ## Usage
@@ -529,9 +538,9 @@ connection string, with 0.25 s / 1 s backoff, inside `request_timeout`.
 Nothing is ever retried after the request is written.
 
 Build one `Client` per connection string and reuse it. It caches the wallet's
-info event and the connection's encryption key, so only its first call pays
-for the ECDH (tens of milliseconds in pure Ruby); a `Client` built per request
-pays it on every call.
+info event (a relay round trip) and the connection's encryption key (an ECDH,
+under a millisecond), so only its first call pays for them; a `Client` built
+per request pays for both on every call.
 
 Introspection:
 
@@ -582,6 +591,9 @@ the original is kept as `#cause`.
 
 - `InvalidConnectionStringError` — the URI couldn't be parsed.
 - `EncryptionError` — bad MAC / bad padding / unknown version byte / bad key.
+- `CryptoUnavailableError` — this Ruby's OpenSSL can't do secp256k1 ECDH
+  (FIPS mode, or a build without the curve), so nothing can be encrypted or
+  decrypted. Retrying won't help.
 - `InvalidSignatureError` — an event's signature did not verify.
 - `TransportError` — the connection failed **after** the request was written
   to the relay. The wallet may have acted on it: reconcile with

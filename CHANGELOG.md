@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-08
+
+### Changed
+
+- **ECDH is native, about 58x faster.** NIP-04 and NIP-44 v2 derive their
+  keys from an ECDH that this gem computed as pure-Ruby scalar multiplication
+  with the `ecdsa` gem. It now runs in OpenSSL through Ruby's built-in
+  `openssl` library: 34.3 ms → 0.60 ms per ECDH on an Apple-silicon laptop
+  (Docker, aarch64 Linux, Ruby 3.4.9, OpenSSL 3.5.6). A `Client` built per
+  request gains the most; a reused `Client` has run ECDH once per connection
+  since 0.4.0. The output is byte-for-byte unchanged: checked against the
+  0.4.0 code on 6,171 key pairs (including private keys and shared X values
+  with leading zero bytes) and against paulmillr's NIP-44 vectors. OpenSSL
+  also multiplies secret scalars with a constant-time ladder, which the
+  `ecdsa` gem did not.
+
+### Removed
+
+- The `ecdsa` runtime dependency, along with `NwcRuby::Crypto::ECDH.lift_x`
+  and `ECDH::GROUP`. OpenSSL now decodes the peer's even-Y point from
+  `02 || x`.
+
+### Added
+
+- `NwcRuby::CryptoUnavailableError`, raised when this Ruby's OpenSSL cannot
+  do secp256k1 ECDH, e.g. in FIPS mode. It is deliberately not an
+  `EncryptionError`, which the notification listener treats as one bad
+  message and skips. `NwcRuby::Crypto::ECDH.available?` checks ahead of time.
+- Specs: paulmillr's full `nip44.vectors.json`, pinned to the SHA-256 that
+  NIP-44 publishes (all 35 valid and 8 invalid `get_conversation_key`
+  vectors, all 10 `encrypt_decrypt` vectors), and ECDH specs checked against
+  libsecp256k1's point multiplication.
+
+### Fixed
+
+- `ECDH.shared_x` rejects an out-of-range private key with `EncryptionError`
+  ("private key out of range"). Before, 0 or n raised a bare `ArgumentError`
+  and a key above n was silently reduced mod n. Off-curve and out-of-range
+  public keys raise the same `EncryptionError` messages as before.
+
 ## [0.4.0] — 2026-10-20
 
 ### Changed

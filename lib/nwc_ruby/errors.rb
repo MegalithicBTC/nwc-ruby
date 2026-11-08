@@ -11,8 +11,16 @@ module NwcRuby
   # The connection string is missing or malformed.
   class InvalidConnectionStringError < Error; end
 
-  # Encryption / decryption failed (bad MAC, bad padding, unknown version byte).
+  # Encryption / decryption failed (bad MAC, bad padding, unknown version
+  # byte, or a key that is out of range or not on the curve).
   class EncryptionError < Error; end
+
+  # This Ruby's OpenSSL cannot do secp256k1 ECDH, which NIP-04 and NIP-44
+  # both need: FIPS mode refuses the curve, and some builds leave it out.
+  # Unlike `EncryptionError` this is not about one message: nothing can be
+  # encrypted or decrypted in this process. `Crypto::ECDH.available?` checks
+  # ahead of time.
+  class CryptoUnavailableError < Error; end
 
   # Signature verification failed on an inbound event.
   class InvalidSignatureError < Error; end
